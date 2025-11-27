@@ -9,7 +9,7 @@ from fastapi import (
     Query,
 )
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func
+from sqlalchemy import or_, and_, func
 from app.models.users import User, Domain
 from app.schemas.users import (
     UserCreate,
@@ -91,7 +91,7 @@ def get_users(
     request: Request,
     page: int = Query(1, ge=1),
     limit: int = Query(25, ge=1, le=200),
-    search: Optional[str] = Query(None, description="Filter by first name or last name or orginazation name  or email"),
+    search: Optional[str] = Query(None, description="Search by first name, last name, organization, or email"),
     role_id: Optional[int] = Query(None),
     is_active: Optional[str] = Query(None, description="True, False, or null"),
     is_approved: Optional[str] = Query(None, description="True, False, or null"),
@@ -104,49 +104,64 @@ def get_users(
 
     query = db.query(User).filter(User.IsDeleted == False)
 
-    # Search filter
+    # --- Flexible search filter ---
     if search:
-        like_term = f"%{search}%"
-        query = query.filter(
-            or_(
-                User.FirstName.ilike(like_term),
-                User.LastName.ilike(like_term),
-                User.Email.ilike(like_term),
-                User.OrganizationName.ilike(like_term),
+        # split search term by spaces
+        search_terms = search.strip().split()
+        search_filters = []
+        for term in search_terms:
+            like_term = f"%{term}%"
+            search_filters.append(
+                or_(
+                    User.FirstName.ilike(like_term),
+                    User.LastName.ilike(like_term),
+                    User.Email.ilike(like_term),
+                    User.OrganizationName.ilike(like_term),
+                )
             )
-        )
+        query = query.filter(and_(*search_filters))
 
-    # Role filter
+    # --- Role filter ---
     if role_id:
         query = query.filter(User.RoleID == role_id)
 
-    # is_active filter (True, False, or Null)
+    # --- Boolean filters (True, False, or None) ---
+    def bool_filter(field, value: Optional[str]):
+        if value is None:
+            return
+        v = value.lower()
+        if v == "true":
+            query.filter(field == True)
+        elif v == "false":
+            query.filter(field == False)
+        elif v == "null":
+            query.filter(field.is_(None))
+
     if is_active is not None:
         if is_active.lower() == "true":
             query = query.filter(User.IsActive == True)
         elif is_active.lower() == "false":
             query = query.filter(User.IsActive == False)
         elif is_active.lower() == "null":
-            query = query.filter(User.IsActive == None)
+            query = query.filter(User.IsActive.is_(None))
 
-    # is_approved filter (True, False, or Null)
     if is_approved is not None:
         if is_approved.lower() == "true":
             query = query.filter(User.IsApproved == True)
         elif is_approved.lower() == "false":
             query = query.filter(User.IsApproved == False)
         elif is_approved.lower() == "null":
-            query = query.filter(User.IsApproved == None)
-            
-    # is_approved filter (True, False, or Null)
+            query = query.filter(User.IsApproved.is_(None))
+
     if is_verified is not None:
         if is_verified.lower() == "true":
             query = query.filter(User.EmailVerified == True)
         elif is_verified.lower() == "false":
             query = query.filter(User.EmailVerified == False)
         elif is_verified.lower() == "null":
-            query = query.filter(User.EmailVerified == None)
+            query = query.filter(User.EmailVerified.is_(None))
 
+    # --- Pagination ---
     total = query.count()
     skip = (page - 1) * limit
     users = query.order_by(User.CreatedAt.desc()).offset(skip).limit(limit).all()
