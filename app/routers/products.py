@@ -1,13 +1,11 @@
-# app/routers/products.py
-from fastapi import (
-    APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
-)
+# routers/products.py
+from fastapi import APIRouter, Depends, Request, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional, List
-import os
-import shutil
+import os, shutil
 from urllib.parse import quote
+
 from app.models.products import Product
 from app.models.users import User
 from app.schemas.products import ProductResponse
@@ -21,10 +19,10 @@ router = APIRouter(prefix="/products", tags=["Products"])
 PRODUCT_IMAGES_DIR = static_path("Products", "images", ensure=True)
 PRODUCT_VIDEOS_DIR = static_path("Products", "videos", ensure=True)
 
+
 # -------------------------
 # Helper functions
 # -------------------------
-
 def parse_services(product: Product) -> List[dict]:
     """
     Convert comma-separated services fields into structured list.
@@ -45,30 +43,29 @@ def parse_services(product: Product) -> List[dict]:
 
 def format_product(product: Product, request: Request) -> dict:
     """
-    Format product info, with service list and full image/video URLs.
+    Format product info with services list and full image/video URLs.
     """
     item = ProductResponse.from_orm(product).dict()
     item["Services"] = parse_services(product)
 
-    # Replace old individual service fields (optional: keep them if you want)
+    # Remove old individual service fields
     item.pop("ServicesName", None)
     item.pop("ServicesDescription", None)
     item.pop("ServicesLink", None)
 
-    if item.get("ImagePath"):
-        imagename = quote(os.path.basename(item["ImagePath"]))
-        item["ImagePath"] = f"{request.base_url}static/Products/images/{imagename}"
+    base_url = str(request.base_url).rstrip("/")
 
+    if item.get("ImagePath"):
+        item["ImagePath"] = f"{base_url}/static/Products/images/{quote(os.path.basename(item['ImagePath']))}"
     if item.get("VideoPath"):
-        videoname = quote(os.path.basename(item["VideoPath"]))
-        item["VideoPath"] = f"{request.base_url}static/Products/videos/{videoname}"
+        item["VideoPath"] = f"{base_url}/static/Products/videos/{quote(os.path.basename(item['VideoPath']))}"
 
     return item
 
 
 def save_uploaded_file(upload: UploadFile, folder: str) -> str:
     """
-    Save uploaded image or video to static folder and return path.
+    Save uploaded image or video and return path.
     """
     file_path = os.path.join(folder, upload.filename)
     with open(file_path, "wb") as buffer:
@@ -81,14 +78,13 @@ def save_uploaded_file(upload: UploadFile, folder: str) -> str:
 # -------------------------
 @router.get("/all")
 def get_all_products(request: Request, db: Session = Depends(get_db)):
-    products = (
-        db.query(Product)
-        .filter(Product.IsDeleted != True)
-        .order_by(Product.CreatedAt.desc())
-        .all()
-    )
+    products = db.query(Product).filter(Product.IsDeleted != True).order_by(Product.CreatedAt.desc()).all()
     data = [format_product(p, request) for p in products]
-    return success_response("Products retrieved successfully", data)
+    return success_response(
+        "Products retrieved successfully",
+        "تم جلب المنتجات بنجاح",
+        data
+    )
 
 
 # -------------------------
@@ -98,16 +94,24 @@ def get_all_products(request: Request, db: Session = Depends(get_db)):
 def get_all_products_admin(request: Request, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     products = db.query(Product).order_by(Product.CreatedAt.desc()).all()
     data = [format_product(p, request) for p in products]
-    return success_response("All products retrieved successfully", data)
+    return success_response(
+        "All products retrieved successfully",
+        "تم جلب جميع المنتجات بنجاح",
+        data
+    )
 
 
 @router.get("/{product_id}")
 def get_product(product_id: int, request: Request, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     product = db.query(Product).filter(Product.ProductID == product_id, Product.IsDeleted != True).first()
     if not product:
-        return error_response("Product not found", "NOT_FOUND")
+        return error_response("Product not found", "لم يتم العثور على المنتج")
     data = format_product(product, request)
-    return success_response("Product retrieved successfully", data)
+    return success_response(
+        "Product retrieved successfully",
+        "تم جلب المنتج بنجاح",
+        data
+    )
 
 
 @router.post("/add")
@@ -147,7 +151,11 @@ def create_product(
     db.commit()
     db.refresh(new_product)
     data = format_product(new_product, request)
-    return success_response("Product created successfully", data)
+    return success_response(
+        "Product created successfully",
+        "تم إنشاء المنتج بنجاح",
+        data
+    )
 
 
 @router.put("/{product_id}")
@@ -168,7 +176,7 @@ def update_product(
 ):
     product = db.query(Product).filter(Product.ProductID == product_id, Product.IsDeleted != True).first()
     if not product:
-        return error_response("Product not found", "NOT_FOUND")
+        return error_response("Product not found", "لم يتم العثور على المنتج")
 
     if NameEn is not None: product.NameEn = NameEn
     if NameAr is not None: product.NameAr = NameAr
@@ -193,16 +201,24 @@ def update_product(
     db.commit()
     db.refresh(product)
     data = format_product(product, request)
-    return success_response("Product updated successfully", data)
+    return success_response(
+        "Product updated successfully",
+        "تم تحديث المنتج بنجاح",
+        data
+    )
 
 
 @router.delete("/{product_id}")
 def delete_product(product_id: int, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     product = db.query(Product).filter(Product.ProductID == product_id, Product.IsDeleted != True).first()
     if not product:
-        return error_response("Product not found", "NOT_FOUND")
+        return error_response("Product not found", "لم يتم العثور على المنتج")
+
     product.IsDeleted = True
     product.UpdatedAt = datetime.utcnow()
     product.UpdatedByUserID = current_user.UserID
     db.commit()
-    return success_response("Product soft-deleted successfully")
+    return success_response(
+        "Product soft-deleted successfully",
+        "تم حذف المنتج بنجاح"
+    )

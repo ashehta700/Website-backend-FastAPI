@@ -100,7 +100,7 @@ def get_users(
     db: Session = Depends(get_db),
 ):
     if current.RoleID != 1:
-        return error_response("Only admins can view all users", "FORBIDDEN")
+        return error_response("Only admins can view all users","هذه الصفحة للمستخدم الرئيسي فقط", error_code="FORBIDDEN")
 
     query = db.query(User).filter(User.IsDeleted == False)
 
@@ -176,7 +176,7 @@ def get_users(
         "users": results,
     }
 
-    return success_response("Users retrieved successfully", payload)
+    return success_response("Users retrieved successfully", data= payload)
 
 
 
@@ -186,14 +186,14 @@ def get_users(
 def get_user(request: Request, user_id: int, db: Session = Depends(get_db), current=Depends(get_current_user)):
     user = db.query(User).filter(User.UserID == user_id).first()
     if not user:
-        return error_response("User not found", "USER_NOT_FOUND")
+        return error_response("User not found","هذا المستخدم غير موجود" ,"USER_NOT_FOUND")
 
     if current.RoleID != 1:
-        return error_response("Only admins can view user details", "FORBIDDEN")
+        return error_response("Only admins can view user details", "يمكن عرض التفاصيل للمستخدم الرئيسي فقط","FORBIDDEN")
 
     user_data = _serialize_user(user, request)
 
-    return success_response("User retrieved successfully", user_data)
+    return success_response("User retrieved successfully", data=user_data)
 
 
 # get the details for the current user with token
@@ -201,9 +201,9 @@ def get_user(request: Request, user_id: int, db: Session = Depends(get_db), curr
 def get_me(request: Request, current=Depends(get_current_user), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.UserID == current.UserID).first()
     if not user:
-        return error_response("User not found", "USER_NOT_FOUND")
+        return error_response("User not found", "هذا المستخدم غير موجود" , "USER_NOT_FOUND")
 
-    return success_response("Profile retrieved successfully", _serialize_user(user, request))
+    return success_response("Profile retrieved successfully",data= _serialize_user(user, request))
 
 
 
@@ -212,12 +212,12 @@ def get_me(request: Request, current=Depends(get_current_user), db: Session = De
 def update_user(user_update: UserUpdate, user_id: int = Path(...), current=Depends(get_current_user), db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.UserID == user_id).first()
     if not db_user:
-        return error_response("User not found", "USER_NOT_FOUND")
+        return error_response("User not found", error_code= "USER_NOT_FOUND")
 
     is_owner = current.UserID == user_id
     is_admin = current.RoleID == 1
     if not (is_owner or is_admin):
-        return error_response("Not authorized", "FORBIDDEN")
+        return error_response("Not authorized", error_code="FORBIDDEN")
 
     update_data = user_update.dict(exclude_unset=True)
     for key, value in update_data.items():
@@ -233,7 +233,7 @@ def update_user(user_update: UserUpdate, user_id: int = Path(...), current=Depen
     user_dict.pop("PasswordHash", None)
     user_dict.pop("PhotoURL", None)
 
-    return success_response("User updated successfully", user_dict)
+    return success_response("User updated successfully", "تم التعديل بنجاح" ,user_dict)
 
 
 
@@ -246,11 +246,11 @@ def admin_create_user(
     db: Session = Depends(get_db)
 ):
     if current.RoleID != 1:
-        return error_response("Only admins can create users", "FORBIDDEN")
+        return error_response("Only admins can create users",error_code= "FORBIDDEN")
 
     existing_user = db.query(User).filter(User.Email == user.Email).first()
     if existing_user:
-        return error_response("Email already registered", "EMAIL_EXISTS")
+        return error_response("Email already registered","هذا البريد مسجل بالفعل" ,"EMAIL_EXISTS")
 
     hashed_password = pwd_context.hash(user.Password)
 
@@ -301,7 +301,7 @@ def admin_create_user(
     """
     background_tasks.add_task(send_email, "Verify your NGD account", email_body, user.Email)
 
-    return success_response("User created and invitation sent.", _serialize_user(new_user, request))
+    return success_response("User created and invitation sent.","تم انشاء الحساب بنجاح وارسال بريد التحقق", _serialize_user(new_user, request))
 
 
 @router.put("/{user_id}/status")
@@ -312,18 +312,18 @@ def update_user_status(
     db: Session = Depends(get_db)
 ):
     if current.RoleID != 1:
-        return error_response("Only admins can update status", "FORBIDDEN")
+        return error_response("Only admins can update status", error_code= "FORBIDDEN")
 
     user = db.query(User).filter(User.UserID == user_id).first()
     if not user:
-        return error_response("User not found", "USER_NOT_FOUND")
+        return error_response("User not found", error_code="USER_NOT_FOUND")
 
     user.IsActive = status.is_active
     user.UpdatedAt = datetime.utcnow()
     user.UpdatedByUserID = current.UserID
     db.commit()
 
-    return success_response("User status updated successfully", {"user_id": user_id, "is_active": user.IsActive})
+    return success_response("User active upated successfully"," تم تنشيط المستخدم بنجاح" ,{"user_id": user_id, "is_active": user.IsActive})
 
 
 
@@ -336,12 +336,12 @@ UPLOAD_DIR = static_path("profile_images", ensure=True)
 def upload_profile_photo(user_id: int, file: UploadFile = File(...), current=Depends(get_current_user), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.UserID == user_id).first()
     if not user:
-        return error_response("User not found", "USER_NOT_FOUND")
+        return error_response("User not found", error_code="USER_NOT_FOUND")
 
     is_owner = current.UserID == user_id
     is_admin = current.RoleID == 1
     if not is_owner and not is_admin:
-        return error_response("Not authorized", "FORBIDDEN")
+        return error_response("Not authorized", error_code="FORBIDDEN")
 
     ext = file.filename.split(".")[-1]
     filename = f"{user_id}.{ext}"
@@ -355,7 +355,7 @@ def upload_profile_photo(user_id: int, file: UploadFile = File(...), current=Dep
     user.UpdatedByUserID = current.UserID
     db.commit()
 
-    return success_response("Photo uploaded successfully", {"photo_url": user.PhotoPath})
+    return success_response("Photo uploaded successfully","تم تعديل الصورة بنجاح" ,{"photo_url": user.PhotoPath})
 
 
 
@@ -363,16 +363,16 @@ def upload_profile_photo(user_id: int, file: UploadFile = File(...), current=Dep
 @router.delete("/{user_id}")
 def delete_user(user_id: int, current=Depends(get_current_user), db: Session = Depends(get_db)):
     if current.RoleID != 1:
-        return error_response("Only admins can delete users", "FORBIDDEN")
+        return error_response("Only admins can delete users", error_code="FORBIDDEN")
 
     user = db.query(User).filter(User.UserID == user_id, User.IsDeleted == False).first()
     if not user:
-        return error_response("User not found", "USER_NOT_FOUND")
+        return error_response("User not found", error_code="USER_NOT_FOUND")
 
     user.IsDeleted = True
     db.commit()
 
-    return success_response("User marked as deleted successfully")
+    return success_response("User marked as deleted successfully", "تم حذف المستخدم بنجاح")
 
 
 
@@ -380,11 +380,11 @@ def delete_user(user_id: int, current=Depends(get_current_user), db: Session = D
 @router.put("/{user_id}/approve")
 def approve_user(user_id: int, current=Depends(get_current_user), db: Session = Depends(get_db)):
     if current.RoleID != 1:
-        return error_response("Only admins can approve users", "FORBIDDEN")
+        return error_response("Only admins can approve users",error_code= "FORBIDDEN")
 
     user = db.query(User).filter(User.UserID == user_id).first()
     if not user:
-        return error_response("User not found", "USER_NOT_FOUND")
+        return error_response("User not found",error_code= "USER_NOT_FOUND")
 
     user.IsApproved = True
     user.IsActive = True
@@ -405,7 +405,7 @@ def approve_user(user_id: int, current=Depends(get_current_user), db: Session = 
 
     db.commit()
 
-    return success_response(f"User ID {user_id} approved and activated successfully.", {"user_id": user_id})
+    return success_response(f"User ID {user_id} approved and activated successfully.", "تم الموافقه على المستخدم وتفعيله بنجاح",{"user_id": user_id})
 
 
 @router.put("/{user_id}/refuse")
@@ -416,11 +416,11 @@ def refuse_user(
     db: Session = Depends(get_db),
 ):
     if current.RoleID != 1:
-        return error_response("Only admins can refuse users", "FORBIDDEN")
+        return error_response("Only admins can refuse users", error_code="FORBIDDEN")
 
     user = db.query(User).filter(User.UserID == user_id).first()
     if not user:
-        return error_response("User not found", "USER_NOT_FOUND")
+        return error_response("User not found",error_code= "USER_NOT_FOUND")
 
     domain_value = extract_email_domain(user.Email)
     if domain_value:
@@ -444,4 +444,4 @@ def refuse_user(
 
     db.commit()
 
-    return success_response("User refused and notified.", {"user_id": user_id})
+    return success_response("User refused and notified.", "تم رفض المستخدم واشعاره" ,{"user_id": user_id})

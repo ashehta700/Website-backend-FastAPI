@@ -50,7 +50,7 @@ def get_visitor_filter_options(db: Session = Depends(get_db)):
         ]
     }
 
-    return success_response("Visitor filter options retrieved successfully", data)
+    return success_response("Visitor filter options retrieved successfully" , data=data)
 
 
 
@@ -109,7 +109,7 @@ def visitors_summary(db: Session = Depends(get_db)):
         ],
     }
 
-    return success_response("Visitors summary retrieved successfully", data)
+    return success_response("Visitors summary retrieved successfully", data=data)
 
 
 @router.get("/visitors/filter")
@@ -190,7 +190,7 @@ def visitors_filter(
         "time_series": formatted_series
     }
 
-    return success_response("Visitors filtered successfully", data)
+    return success_response("Visitors filtered successfully", data=data)
 
 
 
@@ -263,7 +263,7 @@ def get_user_filter_options(db: Session = Depends(get_db)):
         "datasets": [d.DatasetName for d in dataset_names],
     }
 
-    return success_response("User/download filter options retrieved successfully", data)
+    return success_response("User/download filter options retrieved successfully", data=data)
 
 
 
@@ -414,7 +414,7 @@ def users_summary(db: Session = Depends(get_db)):
         ],
     }
 
-    return success_response("Users & downloads summary retrieved successfully", data)
+    return success_response("Users & downloads summary retrieved successfully", data=data)
 
 # ----------------------------
 # 2️⃣ Users & Downloads Filter Endpoint
@@ -623,4 +623,4 @@ def users_filter(
         ]
     }
 
-    return success_response("Filtered user downloads successfully", response)
+    return success_response("Filtered user downloads successfully", data = response)

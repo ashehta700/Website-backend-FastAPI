@@ -50,4 +50,4 @@ async def get_summary(request: Request, db: Session = Depends(get_db)):
         "total_download_reports": total_download_reports,
     }
 
-    return success_response("Statistics summary", data)
+    return success_response("Statistics summary", data=data)

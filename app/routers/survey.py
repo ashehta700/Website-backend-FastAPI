@@ -59,10 +59,10 @@ def submit_vote(
 
     # ✅ Validate input
     if Answer not in ["Yes", "No"]:
-        return error_response("Answer must be 'Yes' or 'No'.", "INVALID_ANSWER")
+        return error_response("Answer must be 'Yes' or 'No'.", error_code= "INVALID_ANSWER")
 
     if not user_id and not visitor_id:
-        return error_response("Either UserId or VisitorId is required.", "NO_IDENTITY")
+        return error_response("Either UserId or VisitorId is required.",error_code= "NO_IDENTITY")
 
     # ✅ Check if user or visitor already voted
     existing_vote = (
@@ -75,7 +75,7 @@ def submit_vote(
 
     if existing_vote:
         # Return existing info — no new vote created
-        return success_response("User has already voted before.", {
+        return success_response("User has already voted before.", data={
             "AlreadyVoted": True,
             "Id": existing_vote.Id,
             "Answer": existing_vote.Answer,
@@ -96,7 +96,7 @@ def submit_vote(
     db.commit()
     db.refresh(vote)
 
-    return success_response("Vote submitted successfully.", {
+    return success_response("Vote submitted successfully.","تم التصويت بنجاح", data={
         "AlreadyVoted": False,
         "Id": vote.Id,
         "Answer": vote.Answer,
@@ -119,7 +119,7 @@ def get_vote_stats(db: Session = Depends(get_db)):
     percentage_yes = round((yes_count / total) * 100, 2) if total > 0 else 0
     percentage_no = round((no_count / total) * 100, 2) if total > 0 else 0
 
-    return success_response("Vote statistics", {
+    return success_response("Vote statistics", data={
         "total_votes": total,
         "yes_votes": yes_count,
         "no_votes": no_count,
@@ -190,7 +190,7 @@ def get_questions(db: Session = Depends(get_db)):
     # Convert dict → list
     categories_list = list(categories_dict.values())
 
-    return success_response("Survey questions grouped by category", {"categories": categories_list})
+    return success_response("Survey questions grouped by category", data={"categories": categories_list})
 
 
 
@@ -282,7 +282,7 @@ def submit_bulk_answers(
         db.refresh(answer)
 
     return success_response(
-        "Bulk answers submitted",
+        "Bulk answers submitted",data=
         [
             {
                 "Id": a.Id,
@@ -366,7 +366,7 @@ def get_survey_statistics(
             "Choices": [{"choice": c[0], "count": c[1]} for c in choice_counts]
         })
 
-    return success_response("Survey statistics loaded successfully", {
+    return success_response("Survey statistics loaded successfully", data={
         "total_answers": total_answers,
         "total_respondents": total_respondents,
         "users_count": distinct_users,
@@ -421,7 +421,7 @@ def get_all_user_responses(
             "answers": structured
         })
 
-    return success_response("Responses loaded successfully", rows)
+    return success_response("Responses loaded successfully",data= rows)
 
 
 # ----------------------------
@@ -470,7 +470,7 @@ def get_response_details(
             "answers": detailed
         })
 
-    return success_response("User response details loaded", output)
+    return success_response("User response details loaded",data= output)
 
 
 # ----------------------------
@@ -526,4 +526,4 @@ def export_survey_report(
 
         report_rows.append(row)
 
-    return success_response("Export generated", report_rows)
+    return success_response("Export generated", "تم التصدير بنجاح",data=report_rows)

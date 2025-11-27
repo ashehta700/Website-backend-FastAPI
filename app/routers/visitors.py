@@ -20,7 +20,7 @@ def get_client_ip(request: Request):
     else:
         ip_address = request.client.host
 
-    return success_response("Visitor IP retrieved successfully", {"IPAddress": ip_address})
+    return success_response("Visitor IP retrieved successfully", data= {"IPAddress": ip_address})
 
 
 # --- 2️⃣ Endpoint to track visitor ---
@@ -76,7 +76,7 @@ async def auto_track(visitor: VisitorCreate, request: Request, db: Session = Dep
         visitor_id = result.fetchone()[0]
         db.commit()
 
-    return success_response("Visitor tracked successfully", {
+    return success_response("Visitor tracked successfully", data={
         "VisitorID": visitor_id,
         "IPAddress": ip_address,
         "SessionID": session_id,

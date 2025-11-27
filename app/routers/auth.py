@@ -99,7 +99,10 @@ def register(
     # Check for existing user
     existing_user = db.query(User).filter(User.Email == user.Email).first()
     if existing_user:
-        return error_response("Email already registered", "EMAIL_EXISTS")
+        return error_response(
+            message_en="Email already registered",
+            message_ar= "هذا البريد مسجل بالفل",
+            error_code="EMAIL_EXISTS")
 
     # Hash password
     hashed_password = bcrypt.hash(user.Password)
@@ -115,9 +118,10 @@ def register(
         if domain_record and domain_record.Type == "refused":
             background_tasks.add_task(send_domain_refused_email, user.Email, email_domain)
             return error_response(
-                "This email domain is not allowed. Please use your company email.",
-                "DOMAIN_REFUSED"
-            )
+            message_en="This email domain is not allowed. Please use your company email.",
+            message_ar= "هذا البريد غير مسموح له بالتسجيل , برجاء التسجيل ببريد شركة",
+            error_code="DOMAIN_REFUSED")
+             
         if domain_record and domain_record.Type == "accept":
             auto_approve = True
 
@@ -172,9 +176,11 @@ def register(
     background_tasks.add_task(send_email, "Verify your NGD account", email_body, user.Email)
 
     return success_response(
-        "Registration successful. Please verify your email.",
-        {"email": user.Email, "created_by": current_user.UserID if current_user else None}
+    message_en="Registration successful. Please verify your email.",
+    message_ar="تم التسجيل بنجاح , برجاء التحقق من بريدك الالكترونى",
+    data={"email": user.Email, "created_by": current_user.UserID if current_user else None}
     )
+  
 
 
 
@@ -184,19 +190,36 @@ def register(
 def verify_email(token: str, db: Session = Depends(get_db)):
     email = verify_verification_token(token)
     if not email:
-        return error_response("Invalid or expired token", "TOKEN_INVALID")
+        return error_response(
+        message_en="Invalid or expired token",
+        message_ar="رمز التحقق غير صالح أو انتهت صلاحيته",
+        error_code="TOKEN_INVALID"
+    )
 
     user = db.query(User).filter(User.Email == email).first()
     if not user:
-        return error_response("User not found", "USER_NOT_FOUND")
+        return error_response(
+        message_en="User not found",
+        message_ar="هذا المستخدم غير موجود",
+        error_code="USER_NOT_FOUND"
+    )
 
     if user.EmailVerified:
-        return error_response("Email already verified", "EMAIL_ALREADY_VERIFIED")
+        return error_response(
+        message_en="Email already verified",
+        message_ar="هذا البريد تم التحقق منه مسبقاً",
+        error_code="EMAIL_ALREADY_VERIFIED"
+    )
+        
 
     user.EmailVerified = True
     db.commit()
 
-    return success_response("Email verified successfully. Waiting for admin approval.")
+    return success_response(
+    message_en="Email verified successfully. Waiting for admin approval.",
+    message_ar="تم التحقق من البريد بنجاح , برجاء انتظار موافقة مدير النظام"
+    )
+    
 
 
 # this endpoint for Login to the System
@@ -206,27 +229,35 @@ def login(user: UserLogin, request: Request, db: Session = Depends(get_db)):
 
     # 1️⃣ Check if user exists and password matches
     if not db_user or not bcrypt.verify(user.Password, db_user.PasswordHash):
-        return error_response("Invalid email or password", "INVALID_CREDENTIALS")
+        return error_response(
+        message_en="Invalid email or password",
+        message_ar="البريد الإلكتروني أو كلمة المرور غير صحيحة",
+        error_code="INVALID_CREDENTIALS"
+    )
 
     # 2️⃣ Check if email is verified (first priority)
     if not db_user.EmailVerified:
         return error_response(
-            "Please verify your email address before logging in. Check your inbox for the verification link.",
-            "EMAIL_NOT_VERIFIED"
+        message_en= "Please verify your email address before logging in. Check your inbox for the verification link.",
+        message_ar="برجاء التحقق من البريد اولا قبل تسجيل الدخول , فضلاً تحقق من بريدك الاكترونى",
+        error_code="EMAIL_NOT_VERIFIED"
         )
+
 
     # 3️⃣ Check if user is approved by administrator
     if not db_user.IsApproved:
         return error_response(
-            "Your account is pending approval by an administrator. Please wait for approval or contact support.",
-            "ACCOUNT_NOT_APPROVED"
+        message_en= "Your account is pending approval by an administrator. Please wait for approval or contact support.",
+        message_ar="بريدك فى انتظار مواقفة مدير المظام , فضلا انتظر الموافقة او تواصل بنا" ,
+        error_code="ACCOUNT_NOT_APPROVED"
         )
-
+        
     # 4️⃣ Check if user account is active
     if not db_user.IsActive:
         return error_response(
-            "Your account has been deactivated. Please contact support to reactivate your account.",
-            "ACCOUNT_INACTIVE"
+        message_en= "Your account has been deactivated. Please contact support to reactivate your account.",
+        message_ar="حسابك غير مفعل , من فضلك قم بالتواصل معنا للتفعيل مرة اخري" ,
+        error_code="ACCOUNT_INACTIVE"
         )
 
     # 5️⃣ Build photo URL
@@ -247,7 +278,11 @@ def login(user: UserLogin, request: Request, db: Session = Depends(get_db)):
     )
 
     # 7️⃣ Return success response
-    return success_response("Login successful", {"access_token": token})
+    return success_response(
+    message_en="Login successful",
+    message_ar="تم تسجيل الدخول بنجاح",
+    data={"access_token": token}
+)
 
 
 
@@ -256,7 +291,11 @@ def login(user: UserLogin, request: Request, db: Session = Depends(get_db)):
 def forgot_password(request: Request, email: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.Email == email).first()
     if not user:
-        return error_response("Email not found", "EMAIL_NOT_FOUND")
+        return error_response(
+        message_en="Email not found",
+        message_ar="هذا البريد غير مسجل",
+        error_code="EMAIL_NOT_FOUND"
+    )
 
     token = create_verification_token(email, expires_minutes=60)
     reset_url = f"{FRONTEND_BASE_URL}/auth/reset-password?token={token}"
@@ -275,21 +314,37 @@ def forgot_password(request: Request, email: str, background_tasks: BackgroundTa
     </div>
     """
     background_tasks.add_task(send_email, "Password Reset - NGD", email_body, email)
+    return success_response(
+    message_en="Password reset email sent successfully.",
+    message_ar="تم ارسال رابط تغير كلمة المرور الى بريدك بنجاح",
+    data={"email": email}
+)
 
-    return success_response("Password reset email sent successfully.", {"email": email})
 
 
 @router.post("/reset-password")
 def reset_password(token: str, new_password: str, db: Session = Depends(get_db)):
     email = verify_verification_token(token)
     if not email:
-        return error_response("Invalid or expired token", "TOKEN_INVALID")
+        return error_response(
+        message_en="Invalid or expired token",
+        message_ar="خطأ او تم انتهاء صلاحية الرابط",
+        error_code="TOKEN_INVALID"
+    )
+
 
     user = db.query(User).filter(User.Email == email).first()
     if not user:
-        return error_response("User not found", "USER_NOT_FOUND")
+        return error_response(
+        message_en="User not found",
+        message_ar="هذا المستخدم غير موجود",
+        error_code="USER_NOT_FOUND"
+    )
 
     user.PasswordHash = bcrypt.hash(new_password)
     db.commit()
 
-    return success_response("Password has been reset successfully.")
+    return success_response(
+    message_en="Password has been reset successfully.",
+    message_ar="تم تغيير كلمة المرور بنجاح"
+)

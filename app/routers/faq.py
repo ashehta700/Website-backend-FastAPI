@@ -37,7 +37,7 @@ def search_faqs(
     faqs = faq_query.all()
 
     if not faqs:
-        return error_response("No FAQs found in the database.", "EMPTY_FAQ_LIST")
+        return error_response("No FAQs found in the database.", "لا يوجد نتائج", error_code= "EMPTY_FAQ_LIST")
 
     # Select language
     if lang.lower() == "ar":
@@ -52,7 +52,7 @@ def search_faqs(
         ]
 
     if not faq_data:
-        return error_response("No FAQs available in the selected language.", "NO_LANG_DATA")
+        return error_response("No FAQs available in the selected language." ,"لا يوجد نتائج للغة التى اخترتها", error_code="NO_LANG_DATA")
 
     # Calculate similarity
     questions = [f["question"] for f in faq_data]
@@ -81,11 +81,11 @@ def search_faqs(
                 "link": "https://yourwebsite.com/contact"
             }
         }
-        return success_response("No FAQ matched.", fallback)
+        return success_response("No FAQ matched.", "لا يوجد نتائج" ,data=fallback)
 
     # sort & return top 3
     results = sorted(results, key=lambda x: x["Score"], reverse=True)[:3]
-    return success_response("Top matching FAQs retrieved successfully.", results)
+    return success_response("Top matching FAQs retrieved successfully.","اعلى نتائج البحث" ,  results)
 
 
 # ----------------------
@@ -103,7 +103,7 @@ def get_faq_categories(db: Session = Depends(get_db)):
     if not categories:
         return error_response("No FAQ categories found.", "NO_CATEGORIES")
 
-    return success_response("FAQ categories retrieved successfully.", categories)
+    return success_response("FAQ categories retrieved successfully.", data = categories)
 
 
 # ----------------------
@@ -117,9 +117,9 @@ def get_faqs(category_id: Optional[int] = None, db: Session = Depends(get_db)):
     faqs = query.order_by(FAQ.CreatedAt.desc()).all()
 
     if not faqs:
-        return error_response("No FAQs found.", "NO_FAQS")
+        return error_response("No FAQs found.",error_code="NO_FAQS")
 
-    return success_response("FAQs retrieved successfully.", faqs)
+    return success_response("FAQs retrieved successfully.", data = faqs)
 
 
 # ----------------------
@@ -136,7 +136,7 @@ def create_faq_category(
     db.add(category)
     db.commit()
     db.refresh(category)
-    return success_response("FAQ category created successfully.", category)
+    return success_response("FAQ category created successfully.", data =  category)
 
 
 @router.put("/admin/categories/{category_id}")
@@ -152,7 +152,7 @@ def update_faq_category(
         FAQCategory.IsDelete == False
     ).first()
     if not category:
-        return error_response("FAQ category not found.", "NOT_FOUND")
+        return error_response("FAQ category not found.",error_code= "NOT_FOUND")
 
     if NameEn is not None:
         category.NameEn = NameEn
@@ -161,7 +161,7 @@ def update_faq_category(
 
     db.commit()
     db.refresh(category)
-    return success_response("FAQ category updated successfully.", category)
+    return success_response("FAQ category updated successfully.",data= category)
 
 
 @router.delete("/admin/categories/{category_id}")
@@ -175,11 +175,11 @@ def delete_faq_category(
         FAQCategory.IsDelete == False
     ).first()
     if not category:
-        return error_response("FAQ category not found.", "NOT_FOUND")
+        return error_response("FAQ category not found.",error_code= "NOT_FOUND")
 
     category.IsDelete = True
     db.commit()
-    return success_response("FAQ category soft-deleted successfully.")
+    return success_response("FAQ category soft-deleted successfully.","تم الحذف بنجاح")
 
 
 # ----------------------
@@ -201,7 +201,7 @@ def create_faq(
             FAQCategory.IsDelete == False
         ).first()
         if not category:
-            return error_response("FAQ category not found.", "INVALID_CATEGORY")
+            return error_response("FAQ category not found.",error_code= "INVALID_CATEGORY")
 
     faq = FAQ(
         QuestionEn=QuestionEn,
@@ -216,7 +216,7 @@ def create_faq(
     db.add(faq)
     db.commit()
     db.refresh(faq)
-    return success_response("FAQ created successfully.", faq)
+    return success_response("FAQ created successfully.", data= faq)
 
 
 @router.get("/admin/{faq_id}")
@@ -227,8 +227,8 @@ def get_faq(
 ):
     faq = db.query(FAQ).filter(FAQ.FAQID == faq_id, FAQ.IsDelete == False).first()
     if not faq:
-        return error_response("FAQ not found.", "NOT_FOUND")
-    return success_response("FAQ retrieved successfully.", faq)
+        return error_response("FAQ not found.",error_code= "NOT_FOUND")
+    return success_response("FAQ retrieved successfully.",data= faq)
 
 
 @router.put("/admin/{faq_id}")
@@ -244,7 +244,7 @@ def update_faq(
 ):
     faq = db.query(FAQ).filter(FAQ.FAQID == faq_id, FAQ.IsDelete == False).first()
     if not faq:
-        return error_response("FAQ not found.", "NOT_FOUND")
+        return error_response("FAQ not found.", error_code="NOT_FOUND")
 
     if CategoryID:
         category = db.query(FAQCategory).filter(
@@ -252,7 +252,7 @@ def update_faq(
             FAQCategory.IsDelete == False
         ).first()
         if not category:
-            return error_response("FAQ category not found.", "INVALID_CATEGORY")
+            return error_response("FAQ category not found.", error_code="INVALID_CATEGORY")
 
     if QuestionEn is not None:
         faq.QuestionEn = QuestionEn
@@ -270,7 +270,7 @@ def update_faq(
 
     db.commit()
     db.refresh(faq)
-    return success_response("FAQ updated successfully.", faq)
+    return success_response("FAQ updated successfully.", data=faq)
 
 
 @router.delete("/admin/{faq_id}")
@@ -281,7 +281,7 @@ def delete_faq(
 ):
     faq = db.query(FAQ).filter(FAQ.FAQID == faq_id, FAQ.IsDelete == False).first()
     if not faq:
-        return error_response("FAQ not found.", "NOT_FOUND")
+        return error_response("FAQ not found.",error_code= "NOT_FOUND")
 
     faq.IsDelete = True
     db.commit()

@@ -23,3 +23,4 @@ class Projects(Base):
     CreatedByUserID = Column(Integer, ForeignKey("Website.Users.UserID"))
     UpdatedAt = Column(DateTime)
     UpdatedByUserID = Column(Integer, ForeignKey("Website.Users.UserID"))
+    IsDeleted = Column(Boolean)

@@ -1,3 +1,4 @@
+# routers/admin.py
 from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -7,17 +8,16 @@ import shutil
 from app.database import get_db
 from app.auth.jwt_bearer import JWTBearer
 from app.utils.response import success_response, error_response
-from app.utils.email import send_reply_email, send_email_with_attachment , ADMIN_UPLOAD_DIR
+from app.utils.email import send_reply_email, send_email_with_attachment, ADMIN_UPLOAD_DIR
 from app.models.users import User
-from app.models.lookups import Category ,Status ,ComplaintScreen , RequestInformation , Format , Projection
-from app.models.requests import Request, Reply , Request_RequestInformation ,Request_Format  # ✅ import your models
+from app.models.lookups import Category, Status, ComplaintScreen, RequestInformation, Format, Projection
+from app.models.requests import Request, Reply, Request_RequestInformation, Request_Format
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 # ------------------------
 # Auth & Role Dependencies
 # ------------------------
-
 def get_current_user(payload: dict = Depends(JWTBearer()), db: Session = Depends(get_db)) -> User:
     user = db.query(User).filter(User.UserID == payload["user_id"]).first()
     if not user:
@@ -28,10 +28,6 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.RoleID != 1:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admins only")
     return user
-
-
-
-
 
 # ------------------------
 # Assign role to request
@@ -45,14 +41,21 @@ def assign_request(
 ):
     req = db.query(Request).filter(Request.Id == request_id).first()
     if not req:
-        return error_response("Request not found", "REQUEST_NOT_FOUND")
+        return error_response(
+            message_en="Request not found",
+            message_ar="الطلب غير موجود",
+            error_code="REQUEST_NOT_FOUND"
+        )
     req.AssignedRoleId = role_id
     db.commit()
-    return success_response("Request assigned successfully", {"request_id": req.Id})
-
+    return success_response(
+        message_en="Request assigned successfully",
+        message_ar="تم تعيين الطلب بنجاح",
+        data={"request_id": req.Id}
+    )
 
 # ------------------------
-# List all requests (Admin only) - updated
+# List all requests (Admin only)
 # ------------------------
 @router.get("/requests")
 def list_requests(
@@ -62,7 +65,6 @@ def list_requests(
     admin: User = Depends(require_admin)
 ):
     skip = (page - 1) * limit
-
     base_query = (
         db.query(Request, Status, Category, User)
         .join(Status, Request.StatusId == Status.Id, isouter=True)
@@ -98,16 +100,14 @@ def list_requests(
         "requests": results
     }
 
-    return success_response("Requests fetched", payload)
-
-
-
+    return success_response(
+        message_en="Requests fetched successfully",
+        message_ar="تم جلب الطلبات بنجاح",
+        data=payload
+    )
 
 # ------------------------
-# Get Only one request Details (Admin only)
-# ------------------------
-# ------------------------
-# Get Only one request Details (Admin only)
+# Get one request details (Admin only)
 # ------------------------
 @router.get("/request-details/")
 def get_request_details(
@@ -117,12 +117,13 @@ def get_request_details(
 ):
     req = db.query(Request).filter(Request.Id == request_id).first()
     if not req:
-        return error_response("Request not found", "REQUEST_NOT_FOUND")
+        return error_response(
+            message_en="Request not found",
+            message_ar="الطلب غير موجود",
+            error_code="REQUEST_NOT_FOUND"
+        )
 
-    # Fetch user
     user = db.query(User).filter(User.UserID == req.UserId).first() if req.UserId else None
-
-    # Fetch lookups for category, status, complaint screen
     category = db.query(Category).filter(Category.Id == req.CategoryId).first() if req.CategoryId else None
     status = db.query(Status).filter(Status.Id == req.StatusId).first() if req.StatusId else None
     complaint_screen = (
@@ -130,7 +131,6 @@ def get_request_details(
         if req.ComplaintScreenId else None
     )
 
-    # Fetch many-to-many relations
     request_info = (
         db.query(RequestInformation)
         .join(Request_RequestInformation, Request_RequestInformation.c.RequestInformationId == RequestInformation.Id)
@@ -143,11 +143,8 @@ def get_request_details(
         .filter(Request_Format.c.RequestId == req.Id)
         .all()
     )
-
-    # Fetch replies
     replies = db.query(Reply).filter(Reply.RequestId == req.Id, Reply.IsDeleted == False).all()
 
-    # Initialize RequestData fields if category is RequestData
     request_data_details = {}
     if category and category.Id == 8:  # RequestData
         from app.models.requests import RequestData
@@ -168,7 +165,6 @@ def get_request_details(
                 "created_at": rd.CreatedAt,
             }
 
-    # Build response
     details = {
         "id": req.Id,
         "number": req.RequestNumber,
@@ -184,10 +180,8 @@ def get_request_details(
         "created_by": req.CreatedByUserID,
         "updated_at": req.UpdatedAt,
         "updated_by": req.UpdatedByUserID,
-        # Many-to-many
         "request_information": [{"Name_Ar": ri.Name_Ar, "name": ri.Name} for ri in request_info] if request_info else [],
         "formats": [{"name": f.Name} for f in formats] if formats else [],
-        # Replies
         "replies": [
             {
                 "id": reply.Id,
@@ -200,25 +194,25 @@ def get_request_details(
             }
             for reply in replies
         ] if replies else [],
-        # Include RequestData fields if any
         **request_data_details
     }
 
-    return success_response("Request Details", {"request": details})
-
-
+    return success_response(
+        message_en="Request details fetched successfully",
+        message_ar="تم جلب تفاصيل الطلب بنجاح",
+        data={"request": details}
+    )
 
 # ------------------------
-# List requests assigned to current admin’s role
+# List requests assigned to current admin role
 # ------------------------
 @router.get("/assigned_requests")
 def assigned_requests(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Get all requests assigned to the user role
     requests = (
-        db.query(Request,Status, Category, User)
+        db.query(Request, Status, Category, User)
         .filter(Request.AssignedRoleId == user.RoleID)
         .join(Status, Request.StatusId == Status.Id, isouter=True)
         .join(Category, Request.CategoryId == Category.Id, isouter=True)
@@ -241,8 +235,11 @@ def assigned_requests(
             "body": req.Body
         })
 
-    return success_response("Assigned requests fetched", {"requests": results})
-
+    return success_response(
+        message_en="Assigned requests fetched successfully",
+        message_ar="تم جلب الطلبات المخصصة بنجاح",
+        data={"requests": results}
+    )
 
 # ------------------------
 # Admin reply to a request (with optional attachment)
@@ -250,7 +247,7 @@ def assigned_requests(
 @router.post("/reply")
 def admin_reply(
     request_id: int,
-    status_id: int,  # 8 = in-progress, 9 = completed, etc.
+    status_id: int,  
     subject: str = None,
     body: str = None,
     attachment: UploadFile = File(None),
@@ -260,9 +257,12 @@ def admin_reply(
 ):
     req = db.query(Request).filter(Request.Id == request_id).first()
     if not req:
-        return error_response("Request not found", "REQUEST_NOT_FOUND")
+        return error_response(
+            message_en="Request not found",
+            message_ar="الطلب غير موجود",
+            error_code="REQUEST_NOT_FOUND"
+        )
 
-    # --- 1) Save attachment if exists ---
     attachment_path = None
     if attachment:
         orig_name = os.path.basename(attachment.filename)
@@ -272,7 +272,6 @@ def admin_reply(
             shutil.copyfileobj(attachment.file, buffer)
         attachment_path = f"requests/reply/{filename}"   
 
-    # --- 2) Create Reply record ---
     new_reply = Reply(
         RequestId=request_id,
         Subject=subject,
@@ -283,23 +282,22 @@ def admin_reply(
         CreatedByUserID=user.UserID
     )
     db.add(new_reply)
-
-    # --- 3) Update request status ---
     req.StatusId = status_id
     req.UpdatedAt = datetime.utcnow()
     req.UpdatedByUserID = user.UserID
-
     db.commit()
     db.refresh(new_reply)
     db.refresh(req)
 
-    # --- 4) Send email to request owner ---
     request_owner = db.query(User).filter(User.UserID == req.UserId).first()
     if not request_owner or not request_owner.Email:
-        return error_response("Request owner email not found", "USER_EMAIL_NOT_FOUND")
+        return error_response(
+            message_en="Request owner email not found",
+            message_ar="بريد صاحب الطلب غير موجود",
+            error_code="USER_EMAIL_NOT_FOUND"
+        )
 
     user_email = request_owner.Email
-
     email_subject = f"NGD - Response to your request {req.RequestNumber}"
     email_body = f"""
     <h4>Dear {request_owner.FirstName},</h4>
@@ -309,14 +307,12 @@ def admin_reply(
     """
 
     if attachment_path:
-        # Send with attachment
         background_tasks.add_task(send_email_with_attachment, email_subject, email_body, user_email, attachment_path)
     else:
-        # Send without attachment
-        background_tasks.add_task(send_email, email_subject, email_body, user_email)
+        background_tasks.add_task(send_reply_email, email_subject, email_body, user_email)
 
     return success_response(
-        "Reply sent successfully",
-        {"reply_id": new_reply.Id, "new_status": status_id, "request_id": req.Id}
+        message_en="Reply sent successfully",
+        message_ar="تم إرسال الرد بنجاح",
+        data={"reply_id": new_reply.Id, "new_status": status_id, "request_id": req.Id}
     )
-

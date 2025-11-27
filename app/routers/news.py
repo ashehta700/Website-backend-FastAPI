@@ -1,19 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body, UploadFile, File, Request, Form
+# routers/news.py
+
+from fastapi import APIRouter, Depends, Request, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from datetime import datetime
-import shutil
-import os
+from typing import Optional
 from urllib.parse import quote
-from typing import Optional, List
+import os, shutil
 
-from app.database import SessionLocal
+from app.database import get_db
 from app.models.news import News
 from app.models.users import User
-from app.schemas.news import  NewsResponse
-from app.auth.jwt_bearer import JWTBearer
+from app.schemas.news import NewsResponse
 from app.utils.response import success_response, error_response
-from app.database import get_db
-from app.utils.utils import get_current_user ,require_admin
+from app.utils.utils import require_admin
 from app.utils.paths import static_path
 
 router = APIRouter(prefix="/news", tags=["News"])
@@ -22,60 +21,60 @@ NEWS_IMAGES_DIR = static_path("News", "images", ensure=True)
 NEWS_VIDEOS_DIR = static_path("News", "videos", ensure=True)
 
 
-
-
 # -------------------------
 # Helper: format NewsResponse with URLs
 # -------------------------
 def format_news(news: News, request: Request) -> dict:
     item = NewsResponse.from_orm(news).dict()
+    base_url = str(request.base_url).rstrip("/")
     if item.get("ImagePath"):
-        imagename = quote(os.path.basename(item["ImagePath"]))
-        item["ImagePath"] = f"{request.base_url}static/News/images/{imagename}"
+        item["ImagePath"] = f"{base_url}/static/News/images/{quote(os.path.basename(item['ImagePath']))}"
     if item.get("VideoPath"):
-        videoname = quote(os.path.basename(item["VideoPath"]))
-        item["VideoPath"] = f"{request.base_url}static/News/videos/{videoname}"
+        item["VideoPath"] = f"{base_url}/static/News/videos/{quote(os.path.basename(item['VideoPath']))}"
     return item
+
 
 # -------------------------
 # Public Endpoints
 # -------------------------
 @router.get("/slider")
 def get_news_slider(request: Request, db: Session = Depends(get_db)):
-    news_list = (
-        db.query(News)
-        .filter(News.Is_slide == True, News.Is_delete != True)
-        .order_by(News.CreatedAt.desc())
-        .limit(4)
-        .all()
-    )
+    news_list = db.query(News).filter(News.Is_slide == True, News.Is_delete != True).order_by(News.CreatedAt.desc()).limit(4).all()
     data = [format_news(n, request) for n in news_list]
-    return success_response("Slider news retrieved successfully", data)
+    return success_response(
+        "Slider news retrieved successfully",
+        "تم جلب أخبار السلايدر بنجاح",
+        data
+    )
+
 
 @router.get("/all")
 def get_all_news(request: Request, db: Session = Depends(get_db)):
-    news_list = (
-        db.query(News)
-        .filter(News.Is_delete != True)
-        .order_by(News.CreatedAt.desc())
-        .all()
-    )
+    news_list = db.query(News).filter(News.Is_delete != True).order_by(News.CreatedAt.desc()).all()
     data = [format_news(n, request) for n in news_list]
-    return success_response("All news retrieved successfully", data)
+    return success_response(
+        "All news retrieved successfully",
+        "تم جلب جميع الأخبار بنجاح",
+        data
+    )
+
 
 @router.get("/{news_id}")
 def get_news_details(news_id: int, request: Request, db: Session = Depends(get_db)):
     news = db.query(News).filter(News.NewsID == news_id, News.Is_delete != True).first()
     if not news:
-        return error_response("News not found", "NOT_FOUND")
+        return error_response("News not found", "لم يتم العثور على الخبر")
 
     news.Read_count = (news.Read_count or 0) + 1
     db.commit()
     db.refresh(news)
 
     data = format_news(news, request)
-    return success_response("News details retrieved successfully", data)
-
+    return success_response(
+        "News details retrieved successfully",
+        "تم جلب تفاصيل الخبر بنجاح",
+        data
+    )
 
 
 # -------------------------
@@ -126,12 +125,15 @@ def create_news(
     db.refresh(new_news)
 
     data = format_news(new_news, request)
-    return success_response("News created successfully", data)
-
+    return success_response(
+        "News created successfully",
+        "تم إنشاء الخبر بنجاح",
+        data
+    )
 
 
 @router.put("/admin/{news_id}")
-def  update_news  (
+def update_news(
     news_id: int,
     TitleEn: Optional[str] = Form(None),
     TitleAr: Optional[str] = Form(None),
@@ -146,7 +148,7 @@ def  update_news  (
 ):
     news = db.query(News).filter(News.NewsID == news_id, News.Is_delete != True).first()
     if not news:
-        return error_response("News not found", "NOT_FOUND")
+        return error_response("News not found", "لم يتم العثور على الخبر")
 
     if TitleEn is not None: news.TitleEn = TitleEn
     if TitleAr is not None: news.TitleAr = TitleAr
@@ -177,19 +179,25 @@ def  update_news  (
     db.refresh(news)
 
     data = format_news(news, request)
-    return success_response("News updated successfully", data)
-
+    return success_response(
+        "News updated successfully",
+        "تم تحديث الخبر بنجاح",
+        data
+    )
 
 
 @router.delete("/admin/{news_id}")
 def delete_news(news_id: int, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     news = db.query(News).filter(News.NewsID == news_id, News.Is_delete != True).first()
     if not news:
-        return error_response("News not found", "NOT_FOUND")
+        return error_response("News not found", "لم يتم العثور على الخبر")
 
     news.Is_delete = True
     news.UpdatedAt = datetime.utcnow()
     news.UpdatedByUserID = current_user.UserID
 
     db.commit()
-    return success_response("News soft-deleted successfully")
+    return success_response(
+        "News soft-deleted successfully",
+        "تم حذف الخبر بنجاح"
+    )

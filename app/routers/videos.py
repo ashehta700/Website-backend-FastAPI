@@ -43,7 +43,7 @@ def list_videos(request: Request, db: Session = Depends(get_db)):
             "CreatedAt": v.CreatedAt,
             "UpdatedAt": v.UpdatedAt,
         })
-    return success_response("Videos fetched successfully", {"videos": data})
+    return success_response("Videos fetched successfully", data={"videos": data})
 
 # ---------- Admin CRUD ----------
 @router.post("/")
@@ -92,7 +92,7 @@ def create_video(
         "ImagePath": build_image_url(request, new_video.ImagePath),
         "CreatedAt": new_video.CreatedAt,
     }
-    return success_response("Video created successfully", data)
+    return success_response("Video created successfully", "تم انشاء الفيديو بنجاح" , data)
 
 
 @router.put("/{video_id}")
@@ -110,7 +110,7 @@ def update_video(
 ):
     db_video = db.query(Video).filter(Video.VideoID == video_id).first()
     if not db_video:
-        return error_response("Video not found", "VIDEO_NOT_FOUND")
+        return error_response("Video not found",error_code= "VIDEO_NOT_FOUND")
 
     # --- Update text fields if provided ---
     if TitleEn: db_video.TitleEn = TitleEn
@@ -157,14 +157,14 @@ def update_video(
         "UpdatedAt": db_video.UpdatedAt,
     }
 
-    return success_response("Video updated successfully", data)
+    return success_response("Video updated successfully","تم التعديل بنجاح" , data)
 
 
 @router.delete("/{video_id}")
 def delete_video(video_id: int, db: Session = Depends(get_db), user: User = Depends(require_admin)):
     db_video = db.query(Video).filter(Video.VideoID == video_id, Video.IsDeleted == False).first()
     if not db_video:
-        return error_response("Video not found", "VIDEO_NOT_FOUND")
+        return error_response("Video not found", error_code="VIDEO_NOT_FOUND")
 
     # Soft delete instead of removing
     db_video.IsDeleted = True
@@ -173,4 +173,4 @@ def delete_video(video_id: int, db: Session = Depends(get_db), user: User = Depe
 
     db.commit()
 
-    return success_response("Video deleted successfully", {"video_id": video_id, "soft_deleted": True})
+    return success_response("Video deleted successfully", "تم الحذف بنجاح" , {"video_id": video_id, "soft_deleted": True})

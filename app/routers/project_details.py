@@ -16,8 +16,6 @@ from app.utils.utils import require_admin
 router = APIRouter(prefix="/project-details", tags=["ProjectDetails"])
 
 
-
-
 # ---------------- Public Endpoint ----------------
 @router.get("/project/{project_id}")
 def get_project_details(project_id: int, db: Session = Depends(get_db)):
@@ -32,10 +30,14 @@ def get_project_details(project_id: int, db: Session = Depends(get_db)):
         .all()
     )
     if not details:
-        return error_response("No Details for this Project", "NOT_FOUND")
+        return error_response("No details for this project", "لا توجد تفاصيل لهذا المشروع")
 
     data = [ProjectDetailResponse.from_orm(d).dict() for d in details]
-    return success_response("Project details retrieved successfully", data)
+    return success_response(
+        "Project details retrieved successfully",
+        "تم جلب تفاصيل المشروع بنجاح",
+        data
+    )
 
 
 # ---------------- Admin Endpoints ----------------
@@ -61,7 +63,8 @@ def create_project_detail(
     db.refresh(new_detail)
     return success_response(
         "Project detail created successfully",
-        ProjectDetailResponse.from_orm(new_detail).dict(),
+        "تم إنشاء تفاصيل المشروع بنجاح",
+        ProjectDetailResponse.from_orm(new_detail).dict()
     )
 
 
@@ -78,7 +81,7 @@ def update_project_detail(
     """
     detail = db.query(ProjectDetails).filter(ProjectDetails.ProjectDetailID == detail_id).first()
     if not detail:
-        return error_response("Project detail not found", "NOT_FOUND")
+        return error_response("Project detail not found", "لم يتم العثور على تفاصيل المشروع")
 
     update_data = payload.dict(exclude_unset=True)
     for field, value in update_data.items():
@@ -90,7 +93,8 @@ def update_project_detail(
     db.refresh(detail)
     return success_response(
         "Project detail updated successfully",
-        ProjectDetailResponse.from_orm(detail).dict(),
+        "تم تحديث تفاصيل المشروع بنجاح",
+        ProjectDetailResponse.from_orm(detail).dict()
     )
 
 
@@ -105,13 +109,16 @@ def delete_project_detail(
     """
     detail = db.query(ProjectDetails).filter(ProjectDetails.ProjectDetailID == detail_id).first()
     if not detail:
-        return error_response("Project detail not found", "NOT_FOUND")
+        return error_response("Project detail not found", "لم يتم العثور على تفاصيل المشروع")
 
     detail.IsDeleted = True
     detail.UpdatedAt = datetime.utcnow()
     detail.UpdatedByUserID = current_user.UserID
     db.commit()
-    return success_response("Project detail deleted successfully")
+    return success_response(
+        "Project detail deleted successfully",
+        "تم حذف تفاصيل المشروع بنجاح"
+    )
 
 
 # ---------------- Optional: Get single detail by ID ----------------
@@ -130,9 +137,10 @@ def get_single_project_detail(
         .first()
     )
     if not detail:
-        return error_response("Project detail not found", "NOT_FOUND")
+        return error_response("Project detail not found", "لم يتم العثور على تفاصيل المشروع")
 
     return success_response(
         "Project detail retrieved successfully",
-        ProjectDetailResponse.from_orm(detail).dict(),
+        "تم جلب تفاصيل المشروع بنجاح",
+        ProjectDetailResponse.from_orm(detail).dict()
     )
