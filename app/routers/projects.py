@@ -107,7 +107,9 @@ def delete_project(project_id: int, _: User = Depends(require_admin), db: Sessio
     if not project:
         return error_response("Project not found", "المشروع غير موجود")
     
-    db.delete(project)
+    project.IsDeleted = True
+    project.UpdatedAt = datetime.utcnow()
+    project.UpdatedByUserID = User.UserID
     db.commit()
     return success_response(
         "Project deleted successfully",

@@ -65,23 +65,23 @@ def submit_vote(
         return error_response("Either UserId or VisitorId is required.",error_code= "NO_IDENTITY")
 
     # ✅ Check if user or visitor already voted
-    existing_vote = (
-        db.query(Vote)
-        .filter(
-            (Vote.UserId == user_id) if user_id else (Vote.VisitorId == visitor_id)
-        )
-        .first()
-    )
+    # existing_vote = (
+    #     db.query(Vote)
+    #     .filter(
+    #         (Vote.UserId == user_id) if user_id else (Vote.VisitorId == visitor_id)
+    #     )
+    #     .first()
+    # )
 
-    if existing_vote:
-        # Return existing info — no new vote created
-        return success_response("User has already voted before.", data={
-            "AlreadyVoted": True,
-            "Id": existing_vote.Id,
-            "Answer": existing_vote.Answer,
-            "SubAnswer": existing_vote.SubAnswer,
-            "CreatedAt": existing_vote.CreatedAt,
-        })
+    # if existing_vote:
+    #     # Return existing info — no new vote created
+    #     return success_response("User has already voted before.", data={
+    #         "AlreadyVoted": True,
+    #         "Id": existing_vote.Id,
+    #         "Answer": existing_vote.Answer,
+    #         "SubAnswer": existing_vote.SubAnswer,
+    #         "CreatedAt": existing_vote.CreatedAt,
+    #     })
 
     # ✅ Create new vote
     vote = Vote(

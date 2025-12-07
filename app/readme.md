@@ -92,13 +92,16 @@ $ docker pull ghcr.io/ashehta700/fastapi-app:latest
 ### 4️⃣ Run again using the same command:
 
 ```bash 
-$ docker run 
--d --name fastapi_app 
---env-file "D:\my main laptop\Geo Makanii\SGS project\Website Backend\Fast API\app\.env"
--p 8000:8000 
--v D:\static_fast_api:/app/static
-ghcr.io/ashehta700/fastapi-app:latest
 
+$ docker run -d `
+   --name fastapi_app `
+   --env-file "D:\my main laptop\Geo Makanii\SGS project\Website Backend\Fast API\app\.env_copy" `
+   -e APP_STATIC_ROOT="/app/static" `
+   -v "D:\static_backend_files_test:/app/static" `
+   -p 8000:8000 `
+   fastapi-fastapi_app
+
+   
 ```
 
 ---
