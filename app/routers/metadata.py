@@ -15,6 +15,10 @@ from app.schemas.metadata import (
 from app.utils.response import success_response, error_response
 from app.utils.utils import require_admin
 from app.utils.paths import static_path
+from sqlalchemy import or_, func
+from fastapi import Query
+
+
 
 router = APIRouter(prefix="/metadata", tags=["Metadata"])
 
@@ -191,6 +195,128 @@ def get_metadata_details(request: Request, metadata_id: int, db: Session = Depen
         data
     )
 
+
+
+@router.get("/search")
+def search_metadata(
+    request: Request,
+    q: Optional[str] = Query(None, min_length=2),
+    dataset_ids: Optional[str] = Query(
+        None,
+        description="Comma separated dataset IDs (e.g. 1,2,3)"
+    ),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    offset = (page - 1) * page_size
+
+    # -------------------------------------------
+    # Base query
+    # -------------------------------------------
+    query = (
+        db.query(MetadataInfo, DatasetInfo)
+        .join(DatasetInfo, MetadataInfo.DatasetID == DatasetInfo.DatasetID)
+        .filter(
+            MetadataInfo.IsDeleted == False,
+            DatasetInfo.IsDeleted == False
+        )
+    )
+
+    # -------------------------------------------
+    # Dataset filter (optional)
+    # -------------------------------------------
+    dataset_id_list = None
+    if dataset_ids:
+        dataset_id_list = [int(i) for i in dataset_ids.split(",") if i.isdigit()]
+        if dataset_id_list:
+            query = query.filter(MetadataInfo.DatasetID.in_(dataset_id_list))
+
+    # -------------------------------------------
+    # Keyword search (optional)
+    # -------------------------------------------
+    if q:
+        keyword = f"%{q}%"
+        query = query.filter(
+            or_(
+                # Metadata
+                MetadataInfo.Name.ilike(keyword),
+                MetadataInfo.NameAr.ilike(keyword),
+                MetadataInfo.Title.ilike(keyword),
+                MetadataInfo.TitleAr.ilike(keyword),
+                MetadataInfo.description.ilike(keyword),
+                MetadataInfo.descriptionAr.ilike(keyword),
+
+                # Dataset
+                DatasetInfo.Name.ilike(keyword),
+                DatasetInfo.NameAr.ilike(keyword),
+                DatasetInfo.Title.ilike(keyword),
+                DatasetInfo.TitleAr.ilike(keyword),
+                DatasetInfo.Keywords.ilike(keyword),
+                DatasetInfo.KeywordsAr.ilike(keyword),
+            )
+        )
+
+    # -------------------------------------------
+    # Total count (after filters)
+    # -------------------------------------------
+    total = query.count()
+
+    # -------------------------------------------
+    # Pagination
+    # -------------------------------------------
+    results = (
+        query
+        .order_by(MetadataInfo.MetadataID.desc())
+        .offset(offset)
+        .limit(page_size)
+        .all()
+    )
+
+    # -------------------------------------------
+    # Response
+    # -------------------------------------------
+    data = []
+    for metadata, dataset in results:
+        data.append({
+            "MetadataID": metadata.MetadataID,
+            "DatasetID": dataset.DatasetID,
+            "Dataset": {
+                "Name": dataset.Name,
+                "NameAr": dataset.NameAr,
+                "Title": dataset.Title,
+                "TitleAr": dataset.TitleAr,
+                "Keywords": dataset.Keywords,
+                "KeywordsAr": dataset.KeywordsAr,
+                "Img": build_file_url(request, dataset.img)
+            },
+            "Metadata": {
+                "Name": metadata.Name,
+                "NameAr": metadata.NameAr,
+                "Title": metadata.Title,
+                "TitleAr": metadata.TitleAr,
+                "Description": metadata.description,
+                "DescriptionAr": metadata.descriptionAr,
+                "CreationDate": metadata.CreationDate,
+                "URL": metadata.URL
+            }
+        })
+
+    return success_response(
+        "Metadata search results retrieved successfully",
+        "تم جلب نتائج البيانات الوصفية بنجاح",
+        {
+            "query": q or "",
+            "filters": {
+                "dataset_ids": dataset_id_list or "ALL"
+            },
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": (total + page_size - 1) // page_size,
+            "results": data
+        }
+    )
 
 # -------------------- ADMIN ENDPOINTS --------------------
 
