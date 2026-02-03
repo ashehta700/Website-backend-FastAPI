@@ -17,7 +17,7 @@ from app.models.videos import Video
 from app.utils.response import success_response, error_response
 from app.utils.paths import normalize_static_subpath
 import re
-
+import os
 router = APIRouter(prefix="/search", tags=["Global Search"])
 
 
@@ -40,9 +40,9 @@ def build_image_url(request: Request, image_path: Optional[str]):
     if not image_path:
         return None
     relative_path = normalize_static_subpath(image_path)
-    base_url = str(request.base_url).rstrip("/")
+    base_url = os.getenv("BASE_URL",request.base_url.rstrip("/"))
     encoded = quote(relative_path, safe="/")
-    return f"{base_url}/static/{encoded}"
+    return f"{base_url or request.base_url.rstrip('/')}/static/{encoded}"
 
 
 def highlight_keywords(text: str, keywords: List[str]) -> str:

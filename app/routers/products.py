@@ -53,12 +53,12 @@ def format_product(product: Product, request: Request) -> dict:
     item.pop("ServicesDescription", None)
     item.pop("ServicesLink", None)
 
-    base_url = str(request.base_url).rstrip("/")
+    base_url = os.getenv("BASE_URL",request.base_url.rstrip("/"))
 
     if item.get("ImagePath"):
-        item["ImagePath"] = f"{base_url}/static/Products/images/{quote(os.path.basename(item['ImagePath']))}"
+        item["ImagePath"] = f"{base_url or request.base_url.rstrip('/')}/static/Products/images/{quote(os.path.basename(item['ImagePath']))}"
     if item.get("VideoPath"):
-        item["VideoPath"] = f"{base_url}/static/Products/videos/{quote(os.path.basename(item['VideoPath']))}"
+        item["VideoPath"] = f"{base_url or request.base_url.rstrip('/')}/static/Products/videos/{quote(os.path.basename(item['VideoPath']))}"
 
     return item
 

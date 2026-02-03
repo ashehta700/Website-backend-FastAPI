@@ -19,8 +19,8 @@ router = APIRouter(prefix="/contact-us", tags=["ContactUs"])
 def build_file_url(request: Request, relative_path: Optional[str]) -> Optional[str]:
     if not relative_path:
         return None
-    base = str(request.base_url).rstrip("/")
-    return f"{base}/static/{quote(relative_path)}"
+    base = os.getenv("BASE_URL",request.base_url.rstrip("/"))
+    return f"{base or request.base_url.rstrip('/')}/static/{quote(relative_path)}"
 
 
 # ------------------ Public: Submit Contact ------------------

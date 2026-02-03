@@ -29,8 +29,8 @@ router = APIRouter(prefix="/metadata", tags=["Metadata"])
 def build_file_url(request: Request, path: Optional[str]) -> Optional[str]:
     if not path:
         return None
-    base_url = str(request.base_url).rstrip("/")
-    return f"{base_url}/static/{quote(path)}"
+    base_url = os.getenv("BASE_URL",request.base_url.rstrip("/"))
+    return f"{base_url or request.base_url.rstrip('/')}/static/{quote(path)}"
 
 
 # -------------------- PUBLIC ENDPOINTS --------------------

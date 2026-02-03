@@ -40,7 +40,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def _photo_url(request: Request, photo_path: Optional[str]) -> Optional[str]:
     if not photo_path:
         return None
-    base_url = str(request.base_url).rstrip("/")
+    base_url = os.getenv("BASE_URL",request.base_url.rstrip("/"))
     return f"{base_url}/{photo_path.lstrip('/')}"
 
 
@@ -312,7 +312,7 @@ def admin_create_user(
     db.refresh(new_user)
 
     token = create_verification_token(user.Email, expires_minutes=None)
-    base_frontend = FRONTEND_BASE_URL or str(request.base_url).rstrip("/")
+    base_frontend = FRONTEND_BASE_URL or os.getenv("BASE_URL")
     verify_url = f"{base_frontend}/auth/verify-email?token={token}"
     email_body = f"""
     <div style="font-family:'Segoe UI',Arial,sans-serif;color:#1f2937;max-width:520px;margin:auto;">

@@ -21,7 +21,8 @@ def format_logo(logo: Logo, request: Request) -> dict:
     data = LogoResponse.from_orm(logo).dict()
     if data.get("ImagePath") and data.get("Category"):
         imagename = quote(os.path.basename(data["ImagePath"]))
-        data["ImagePath"] = f"{request.base_url}static/Logos/{data['Category'].lower()}/{imagename}"
+        base_url = os.getenv("BASE_URL",request.base_url.rstrip("/"))
+        data["ImagePath"] = f"{base_url or request.base_url.rstrip('/')}/static/Logos/{data['Category'].lower()}/{imagename}"
     return data
 
 

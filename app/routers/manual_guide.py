@@ -28,8 +28,8 @@ def format_guide(guide: ManualGuide, request: Request) -> dict:
 
     if item.get("Path"):
         filename = quote(os.path.basename(item["Path"]))
-        item["Path"] = f"{request.base_url}static/manual_guides/{filename}"
-
+        base_url = os.getenv("BASE_URL",request.base_url.rstrip("/"))
+        item["Path"] = f"{base_url or request.base_url.rstrip('/')}/static/manual_guides/{filename}"
     return item
 
 
