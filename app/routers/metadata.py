@@ -26,11 +26,11 @@ router = APIRouter(prefix="/metadata", tags=["Metadata"])
 # --------------------------
 # Helper to build file/image URLs
 # --------------------------
-def build_file_url(path: Optional[str]) -> Optional[str]:
+def build_file_url(request: Request, path: Optional[str]) -> Optional[str]:
     if not path:
         return None
     base_url = os.getenv("BASE_URL")
-    return f"{base_url}/static/{quote(path)}"
+    return f"{base_url or request.base_url.rstrip('/')}/static/{quote(path)}"
 
 
 # -------------------- PUBLIC ENDPOINTS --------------------

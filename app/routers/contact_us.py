@@ -20,7 +20,7 @@ def build_file_url(request: Request, relative_path: Optional[str]) -> Optional[s
     if not relative_path:
         return None
     base = os.getenv("BASE_URL")
-    return f"{base}/static/{quote(relative_path)}"
+    return f"{base or request.base_url.rstrip('/')}/static/{quote(relative_path)}"
 
 
 # ------------------ Public: Submit Contact ------------------

@@ -37,11 +37,11 @@ router = APIRouter(prefix="/users", tags=["Users"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def _photo_url(photo_path: Optional[str]) -> Optional[str]:
+def _photo_url(photo_path: Optional[str], request: Request) -> Optional[str]:
     if not photo_path:
         return None
     base_url = os.getenv("BASE_URL")
-    return f"{base_url}/{photo_path.lstrip('/')}"
+    return f"{base_url or request.base_url.rstrip('/')}/{photo_path.lstrip('/')}"
 
 
 def _serialize_user(user: User, request: Request ,download_items=None) -> dict:
