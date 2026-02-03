@@ -23,13 +23,13 @@ UPLOAD_DIR = static_path("manual_guides", ensure=True)
 # ----------------------------------------------------
 # Helper: Format response with full static file URL
 # ----------------------------------------------------
-def format_guide(guide: ManualGuide, request: Request) -> dict:
+def format_guide(guide: ManualGuide) -> dict:
     item = ManualGuideResponse.model_validate(guide).dict()
 
     if item.get("Path"):
         filename = quote(os.path.basename(item["Path"]))
-        base_url = os.getenv("BASE_URL",request.base_url.rstrip("/"))
-        item["Path"] = f"{base_url or request.base_url.rstrip('/')}/static/manual_guides/{filename}"
+        base_url = os.getenv("BASE_URL")
+        item["Path"] = f"{base_url}/static/manual_guides/{filename}"
     return item
 
 

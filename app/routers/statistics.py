@@ -16,7 +16,7 @@ router = APIRouter(prefix="/statistics", tags=["Statistics"])
 
 # get the statistics for the home page like the total numbers of the users or visitors 
 @router.get("")
-async def get_summary(request: Request, db: Session = Depends(get_db)):
+async def get_summary(db: Session = Depends(get_db)):
     users_count = db.query(User).count()
     visitors_count = db.query(Visitor).count()
     downloads_count = db.query(DownloadItem).count()

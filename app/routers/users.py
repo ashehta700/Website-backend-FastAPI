@@ -37,10 +37,10 @@ router = APIRouter(prefix="/users", tags=["Users"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def _photo_url(request: Request, photo_path: Optional[str]) -> Optional[str]:
+def _photo_url(photo_path: Optional[str]) -> Optional[str]:
     if not photo_path:
         return None
-    base_url = os.getenv("BASE_URL",request.base_url.rstrip("/"))
+    base_url = os.getenv("BASE_URL")
     return f"{base_url}/{photo_path.lstrip('/')}"
 
 

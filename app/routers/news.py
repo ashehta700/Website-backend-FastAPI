@@ -24,13 +24,13 @@ NEWS_VIDEOS_DIR = static_path("News", "videos", ensure=True)
 # -------------------------
 # Helper: format NewsResponse with URLs
 # -------------------------
-def format_news(news: News, request: Request) -> dict:
+def format_news(news: News) -> dict:
     item = NewsResponse.from_orm(news).dict()
-    base_url = os.getenv("BASE_URL",request.base_url.rstrip("/"))
+    base_url = os.getenv("BASE_URL")
     if item.get("ImagePath"):
-        item["ImagePath"] = f"{base_url or request.base_url.rstrip('/')}/static/News/images/{quote(os.path.basename(item['ImagePath']))}"
+        item["ImagePath"] = f"{base_url}/static/News/images/{quote(os.path.basename(item['ImagePath']))}"
     if item.get("VideoPath"):
-        item["VideoPath"] = f"{base_url or request.base_url.rstrip('/')}/static/News/videos/{quote(os.path.basename(item['VideoPath']))}"
+        item["VideoPath"] = f"{base_url}/static/News/videos/{quote(os.path.basename(item['VideoPath']))}"
     return item
 
 

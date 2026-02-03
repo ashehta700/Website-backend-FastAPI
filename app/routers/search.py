@@ -36,13 +36,13 @@ def get_db():
 # Helpers
 # ==========================================
 
-def build_image_url(request: Request, image_path: Optional[str]):
+def build_image_url(image_path: Optional[str]):
     if not image_path:
         return None
     relative_path = normalize_static_subpath(image_path)
-    base_url = os.getenv("BASE_URL",request.base_url.rstrip("/"))
+    base_url = os.getenv("BASE_URL")
     encoded = quote(relative_path, safe="/")
-    return f"{base_url or request.base_url.rstrip('/')}/static/{encoded}"
+    return f"{base_url}/static/{encoded}"
 
 
 def highlight_keywords(text: str, keywords: List[str]) -> str:

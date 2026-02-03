@@ -17,13 +17,13 @@ router = APIRouter(prefix="/videos", tags=["Videos"])
 # ---------- Helpers ----------
 
 
-def build_image_url(request: Request, image_path: Optional[str]) -> Optional[str]:
+def build_image_url(image_path: Optional[str]) -> Optional[str]:
     relative_path = normalize_static_subpath(image_path) if image_path else ""
     if not relative_path:
         return None
-    base_url = os.getenv("BASE_URL",request.base_url.rstrip("/"))
+    base_url = os.getenv("BASE_URL")
     encoded = quote(relative_path, safe="/")
-    return f"{base_url or request.base_url.rstrip('/')}/static/{encoded}"
+    return f"{base_url}/static/{encoded}"
 
 
 # ---------- Public ----------

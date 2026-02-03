@@ -302,9 +302,9 @@ def login(user: UserLogin, request: Request, db: Session = Depends(get_db)):
         )
 
     # 5️⃣ Build photo URL
-    base_url = os.getenv("BASE_URL",request.base_url.rstrip("/"))
+    base_url = os.getenv("BASE_URL")
     photo_relative_path = db_user.PhotoPath or ""
-    photo_url = f"{base_url or request.base_url.rstrip('/')}/{photo_relative_path.lstrip('/')}" if photo_relative_path else None
+    photo_url = f"{base_url}/{photo_relative_path.lstrip('/')}" if photo_relative_path else None
 
     # 6️⃣ Create JWT token
     token = create_access_token(
