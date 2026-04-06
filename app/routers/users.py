@@ -28,7 +28,9 @@ from app.auth.tokens import create_verification_token
 from app.utils.email import send_email, send_domain_refused_email
 from app.utils.paths import static_path
 from app.models.dashboard import DownloadRequest, DownloadItem, BibliographyDownloadRequest
-
+from app.models.requests import Request as RequestModel  
+from app.models.lookups import Status, Category
+from app.models.requests import Reply
 load_dotenv()
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "")
 
@@ -37,7 +39,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def _photo_url(photo_path: Optional[str], request: Request) -> Optional[str]:
+def _photo_url(request: Request, photo_path: Optional[str]) -> Optional[str]:
     if not photo_path:
         return None
     base_url = os.getenv("BASE_URL")
@@ -213,26 +215,90 @@ def get_user(request: Request, user_id: int, db: Session = Depends(get_db), curr
     return success_response("User retrieved successfully", data=user_data)
 
 
-# get the details for the current user with token
 @router.get("/profile/me")
-def get_me(request: Request, current=Depends(get_current_user), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.UserID == current.UserID).first()
+def get_me(
+    request: Request,  # FastAPI request
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # -------------------------
+    # 1️⃣ Get current user
+    # -------------------------
+    user = db.query(User).filter(User.UserID == current_user.UserID).first()
     if not user:
-        return error_response("User not found", "هذا المستخدم غير موجود" , "USER_NOT_FOUND")
+        return error_response(
+            "User not found",
+            "هذا المستخدم غير موجود",
+            "USER_NOT_FOUND"
+        )
 
-        # -------------------------
-    # 1️⃣ Get DOWNLOAD_ITEMS
+    # -------------------------
+    # 2️⃣ Get DOWNLOAD_ITEMS for this user
     # -------------------------
     download_items = (
         db.query(DownloadItem)
         .join(DownloadRequest, DownloadItem.ReqNo == DownloadRequest.ReqNo)
         .filter(DownloadRequest.UserID == user.UserID)
         .all()
-    )    
+    )
 
-    print(download_items)
+    # -------------------------
+    # 3️⃣ Get REQUESTS summary for this user
+    # -------------------------
+    # Join with Category and Status to avoid multiple queries
+    requests_summary = (
+        db.query(
+            RequestModel.Id,
+            RequestModel.RequestNumber,
+            RequestModel.Subject,
+            RequestModel.CreatedAt,
+            RequestModel.StatusId,
+            RequestModel.CategoryId,
+            Status.Name.label("status_name_en"),
+            Status.Name_Ar.label("status_name_ar"),
+            Category.Name.label("category_name_en"),
+            Category.Name_Ar.label("category_name_ar")
+        )
+        .outerjoin(Status, RequestModel.StatusId == Status.Id)
+        .outerjoin(Category, RequestModel.CategoryId == Category.Id)
+        .filter(RequestModel.UserId == user.UserID, RequestModel.IsDeleted == False)
+        .order_by(RequestModel.CreatedAt.desc())
+        .all()
+    )
 
-    return success_response("Profile retrieved successfully", data=_serialize_user(user, request, download_items))
+    # Check if each request has a reply
+    request_ids = [r.Id for r in requests_summary]
+    replies_map = {
+        r.RequestId: True
+        for r in db.query(Reply.RequestId)
+        .filter(Reply.RequestId.in_(request_ids), Reply.IsDeleted == False)
+        .all()
+    }
+
+    # Build the summary
+    requests_data = [
+        {
+            "id": r.Id,
+            "number": r.RequestNumber,
+            "subject": r.Subject,
+            "created_at": r.CreatedAt,
+            "status": {"en": r.status_name_en, "ar": r.status_name_ar} if r.StatusId else {},
+            "category": {"en": r.category_name_en, "ar": r.category_name_ar} if r.CategoryId else {},
+            "has_reply": replies_map.get(r.Id, False)
+        }
+        for r in requests_summary
+    ]
+
+    # -------------------------
+    # 4️⃣ Return full response
+    # -------------------------
+    return success_response(
+        "Profile retrieved successfully",
+        data={
+            **_serialize_user(user, request, download_items),
+            "requests": requests_data
+        }
+    )
 
 
 
@@ -312,7 +378,7 @@ def admin_create_user(
     db.refresh(new_user)
 
     token = create_verification_token(user.Email, expires_minutes=None)
-    base_frontend = FRONTEND_BASE_URL or os.getenv("BASE_URL")
+    base_frontend = FRONTEND_BASE_URL 
     verify_url = f"{base_frontend}/auth/verify-email?token={token}"
     email_body = f"""
     <div style="font-family:'Segoe UI',Arial,sans-serif;color:#1f2937;max-width:520px;margin:auto;">

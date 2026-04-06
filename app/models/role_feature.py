@@ -1,8 +1,8 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text , Unicode , UnicodeText
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text , Unicode , UnicodeText, Enum
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
-
+import enum
 
 class RoleApp(Base):
     __tablename__ = "RoleApp"
@@ -40,6 +40,13 @@ class Role(Base):
     features = relationship("AppFeature", secondary="Website.RoleApp", viewonly=True)
 
 
+
+class FeatureTypeEnum(str, enum.Enum):
+    EARTH = "Earth"
+    ADMIN = "Admin"
+
+
+
 class AppFeature(Base):
     __tablename__ = "AppFeatures"
     __table_args__ = {"schema": "Website"}
@@ -50,6 +57,7 @@ class AppFeature(Base):
     DescriptionEn = Column(Text)
     DescriptionAr = Column(UnicodeText)
     Link = Column(String(500))
+    AppType = Column(Enum(FeatureTypeEnum), default=FeatureTypeEnum.EARTH, nullable=False)  # <-- NEW
     CreatedAt = Column(DateTime, default=datetime.utcnow)
     CreatedByUserID = Column(Integer, ForeignKey("Website.Users.UserID"))
     UpdatedAt = Column(DateTime)
@@ -57,6 +65,4 @@ class AppFeature(Base):
 
     # link to RoleApp
     role_apps = relationship("RoleApp", back_populates="app_feature")
-
-    # convenience access to Roles via RoleApp
     roles = relationship("Role", secondary="Website.RoleApp", viewonly=True)

@@ -128,7 +128,7 @@ def list_requests(
 def get_request_details(
     request_id: int,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    current=Depends(get_current_user),
 ):
     # Fetch the main request
     req = db.query(Request).filter(Request.Id == request_id).first()
@@ -313,7 +313,16 @@ def admin_reply(
         CreatedByUserID=user.UserID
     )
     db.add(new_reply)
-    req.StatusId = status_id
+    # Validate status
+    status = db.query(Status).filter(Status.Id == status_id).first()
+    if not status:
+        return error_response(
+            message_en="Invalid status",
+            message_ar="حالة الطلب غير صحيحة",
+            error_code="INVALID_STATUS"
+        )
+    # Update request
+    req.StatusId = status_id    
     req.UpdatedAt = datetime.utcnow()
     req.UpdatedByUserID = user.UserID
     db.commit()

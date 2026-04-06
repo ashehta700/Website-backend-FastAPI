@@ -18,6 +18,7 @@ from app.utils.utils import get_optional_user, extract_email_domain
 from app.models.role_feature import Role
 import os
 from dotenv import load_dotenv
+from app.utils.utils import get_current_user
 
 load_dotenv()
 
@@ -364,28 +365,46 @@ def forgot_password(request: Request, email: str, background_tasks: BackgroundTa
 
 
 @router.post("/reset-password")
-def reset_password(token: str, new_password: str, db: Session = Depends(get_db)):
-    email = verify_verification_token(token)
-    if not email:
+def reset_password_authenticated(
+    old_password: str,
+    new_password: str,
+    current_user: User = Depends(get_current_user),  # Authenticated user
+    db: Session = Depends(get_db)
+):
+    """
+    Authenticated endpoint to change the logged-in user's password.
+    - Requires old_password to match current password
+    - Updates to new_password if all checks pass
+    """
+    # 1️⃣ Check old password
+    if not bcrypt.verify(old_password, current_user.PasswordHash):
         return error_response(
-        message_en="Invalid or expired token",
-        message_ar="خطأ او تم انتهاء صلاحية الرابط",
-        error_code="TOKEN_INVALID"
-    )
+            message_en="Old password is incorrect",
+            message_ar="كلمة المرور الحالية غير صحيحة",
+            error_code="OLD_PASSWORD_INCORRECT"
+        )
 
-
-    user = db.query(User).filter(User.Email == email).first()
-    if not user:
-        return error_response(
-        message_en="User not found",
-        message_ar="هذا المستخدم غير موجود",
-        error_code="USER_NOT_FOUND"
-    )
-
-    user.PasswordHash = bcrypt.hash(new_password)
+    # 2️⃣ Update password
+    current_user.PasswordHash = bcrypt.hash(new_password)
     db.commit()
 
     return success_response(
-    message_en="Password has been reset successfully.",
-    message_ar="تم تغيير كلمة المرور بنجاح"
-)
+        message_en="Password updated successfully",
+        message_ar="تم تحديث كلمة المرور بنجاح"
+    )
+
+
+
+@router.post("/verifiy-forget-password") 
+def reset_password(token: str, new_password: str, db: Session = Depends(get_db)): 
+    email = verify_verification_token(token) 
+    if not email: 
+        return error_response( 
+            message_en="Invalid or expired token", 
+            message_ar="خطأ او تم انتهاء صلاحية الرابط", 
+            error_code="TOKEN_INVALID" ) 
+    user = db.query(User).filter(User.Email == email).first() 
+    if not user: return error_response( message_en="User not found", message_ar="هذا المستخدم غير موجود", error_code="USER_NOT_FOUND" ) 
+    user.PasswordHash = bcrypt.hash(new_password) 
+    db.commit() 
+    return success_response( message_en="Password has been reset successfully.", message_ar="تم تغيير كلمة المرور بنجاح" )    

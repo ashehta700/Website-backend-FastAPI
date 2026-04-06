@@ -6,9 +6,9 @@ from typing import Optional
 from datetime import date
 from urllib.parse import quote
 import os, shutil
-
+from urllib.parse import unquote
 from app.database import get_db
-from app.models.metadata import DatasetInfo, MetadataInfo
+from app.models.metadata import DatasetInfo, MetadataInfo, MetadataService
 from app.schemas.metadata import (
     DatasetInfoResponse, MetadataInfoResponse
 )
@@ -17,6 +17,7 @@ from app.utils.utils import require_admin
 from app.utils.paths import static_path
 from sqlalchemy import or_, func
 from fastapi import Query
+import json
 
 
 
@@ -134,7 +135,10 @@ def get_dataset_services(dataset_id: int, db: Session = Depends(get_db)):
                 "MetadataID": m.MetadataID,
                 "Name": m.Name,
                 "NameAr": m.NameAr,
-                "URL": m.URL
+                "URL": [
+                    {"type": s.Type, "url": s.URL}
+                    for s in m.services
+                ],
             } for m in metadata_list
         ]
     }
@@ -167,7 +171,13 @@ def get_metadata_details(request: Request, metadata_id: int, db: Session = Depen
         "Description": metadata.description,
         "DescriptionAr": metadata.descriptionAr,
         "CreationDate": metadata.CreationDate,
-        "ServicesURL": metadata.URL,
+        "ServicesURL": [
+                        {
+                            "type": s.Type,
+                            "url": s.URL
+                        }
+                        for s in metadata.services
+                    ],
         "DocumentPath": build_file_url(request, metadata.FilePath),
         "Bounds": {
             "West": metadata.WestBound,
@@ -298,7 +308,10 @@ def search_metadata(
                 "Description": metadata.description,
                 "DescriptionAr": metadata.descriptionAr,
                 "CreationDate": metadata.CreationDate,
-                "URL": metadata.URL
+                "Services": [
+                    {"type": s.Type, "url": s.URL}
+                    for s in metadata.services
+                ]
             }
         })
 
@@ -436,7 +449,11 @@ def create_metadata(
     description: str = Form(None),
     descriptionAr: str = Form(None),
     CreationDate: Optional[date] = Form(None),
-    URL: str = Form(None),
+    # URL: str = Form(None),    
+    Services: Optional[str] = Form(
+            default='[{"type":"WMS","url":"https://example.com/wms"},{"type":"WFS","url":"https://example.com/wfs"}]',
+            description="JSON string list of services. Example: [{\"type\":\"WMS\",\"url\":\"...\"}]"
+    ),
     WestBound: Optional[float] = Form(None),
     EastBound: Optional[float] = Form(None),
     NorthBound: Optional[float] = Form(None),
@@ -479,6 +496,20 @@ def create_metadata(
         new_metadata.FilePath = f"dataset/{DatasetID}/metadata/{file.filename}"
         db.commit()
 
+
+
+    if Services:
+        services_list = json.loads(Services)
+
+        for s in services_list:
+            service = MetadataService(
+                MetadataID=new_metadata.MetadataID,
+                Type=s.get("type"),
+                URL=s.get("url")
+            )
+            db.add(service)
+
+        db.commit()
     return success_response(
         "Metadata created successfully",
         "تم إنشاء البيانات الوصفية بنجاح",
@@ -510,36 +541,78 @@ def update_metadata(
     Email: Optional[str] = Form(None),
     Phone: Optional[str] = Form(None),
     Role: Optional[str] = Form(None),
+    Services: Optional[str] = Form(None),  # ✅ NEW
     file: UploadFile = File(None),
     db: Session = Depends(get_db),
     user=Depends(require_admin)
 ):
-    metadata = db.query(MetadataInfo).filter(MetadataInfo.MetadataID == metadata_id, MetadataInfo.IsDeleted == False).first()
+    import json
+    from app.models.metadata import MetadataService
+
+    metadata = db.query(MetadataInfo).filter(
+        MetadataInfo.MetadataID == metadata_id,
+        MetadataInfo.IsDeleted == False
+    ).first()
+
     if not metadata:
         return error_response("Metadata not found", "لم يتم العثور على البيانات الوصفية")
 
+    # -------------------------
+    # 1️⃣ Update basic fields
+    # -------------------------
     for field, value in {
         "DatasetID": DatasetID, "Name": Name, "NameAr": NameAr,
         "Title": Title, "TitleAr": TitleAr, "description": description,
         "descriptionAr": descriptionAr, "CreationDate": CreationDate, "URL": URL,
-        "WestBound": WestBound, "EastBound": EastBound, "NorthBound": NorthBound, "SouthBound": SouthBound,
-        "MetadataStandardName": MetadataStandardName, "MetadataStandardVersion": MetadataStandardVersion,
-        "ContactName": ContactName, "PositionName": PositionName, "Organization": Organization,
-        "Email": Email, "Phone": Phone, "Role": Role
+        "WestBound": WestBound, "EastBound": EastBound,
+        "NorthBound": NorthBound, "SouthBound": SouthBound,
+        "MetadataStandardName": MetadataStandardName,
+        "MetadataStandardVersion": MetadataStandardVersion,
+        "ContactName": ContactName, "PositionName": PositionName,
+        "Organization": Organization, "Email": Email,
+        "Phone": Phone, "Role": Role
     }.items():
         if value is not None:
             setattr(metadata, field, value)
 
-    # Handle file
+    # -------------------------
+    # 2️⃣ Update services
+    # -------------------------
+    if Services is not None:
+        services_list = json.loads(Services)
+
+        # ❗ delete old services
+        db.query(MetadataService).filter(
+            MetadataService.MetadataID == metadata.MetadataID
+        ).delete()
+
+        # ✅ insert new ones
+        for s in services_list:
+            service = MetadataService(
+                MetadataID=metadata.MetadataID,
+                Type=s.get("type"),
+                URL=s.get("url")
+            )
+            db.add(service)
+
+    # -------------------------
+    # 3️⃣ Handle file
+    # -------------------------
     if file:
         folder_path = static_path("dataset", str(metadata.DatasetID), "metadata", ensure=True)
         file_path = os.path.join(folder_path, file.filename)
+
         if metadata.FilePath and os.path.exists(static_path(metadata.FilePath)):
             os.remove(static_path(metadata.FilePath))
+
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+
         metadata.FilePath = f"dataset/{metadata.DatasetID}/metadata/{file.filename}"
 
+    # -------------------------
+    # 4️⃣ Commit
+    # -------------------------
     db.commit()
     db.refresh(metadata)
 
@@ -548,7 +621,6 @@ def update_metadata(
         "تم تحديث البيانات الوصفية بنجاح",
         {"MetadataID": metadata.MetadataID}
     )
-
 
 @router.delete("/admin/metadata/{metadata_id}")
 def delete_metadata(metadata_id: int, db: Session = Depends(get_db), user=Depends(require_admin)):
@@ -562,3 +634,74 @@ def delete_metadata(metadata_id: int, db: Session = Depends(get_db), user=Depend
         "تم حذف البيانات الوصفية بنجاح",
         {"MetadataID": metadata.MetadataID}
     )
+
+
+
+def normalize_url(url: str) -> str:
+    """Normalize URL for comparison"""
+    if not url:
+        return ""
+    return url.split("?")[0].rstrip("/").lower()
+
+
+@router.get("/find-layer")
+def find_layer(
+    url: str,
+    layer_name: str,
+    type: str,
+    db: Session = Depends(get_db)
+):
+    try:
+        # ✅ Decode incoming URL
+        decoded_url = unquote(url)
+
+        # ✅ Normalize inputs
+        normalized_input_url = normalize_url(decoded_url)
+        normalized_layer_name = layer_name.lower().strip()
+        normalized_type = type.upper().strip()
+
+        metadata_list = db.query(MetadataInfo).filter(
+            MetadataInfo.IsDeleted == False
+        ).all()
+
+        for m in metadata_list:
+
+            if not m.services:   # ⚠️ make sure column name = Services (string JSON)
+                continue
+
+            try:
+                # ✅ Load services JSON
+                services = [
+                    {"type": s.Type, "url": s.URL}
+                    for s in m.services
+                ]
+
+                for s in services:
+                    service_type = s.get("type", "").upper()
+                    service_url = normalize_url(s.get("url", ""))
+
+                    # ✅ Matching logic
+                    if (
+                        service_type == normalized_type
+                        and normalized_input_url == service_url
+                        and normalized_layer_name in (m.Name or "").lower()
+                    ):
+                        frontend_url = os.getenv("FRONTEND_BASE_URL")
+
+                        return success_response(
+                            "Layer found",
+                            data={
+                                "id": m.MetadataID,
+                                "redirect_url": f"{frontend_url}/LayerEarthData/{m.MetadataID}"
+                            }
+                        )
+
+            except Exception as e:
+                print("Error parsing services:", e)
+                continue
+
+        return error_response("Layer not found", "هذه الطبقة غير موجودة")
+
+    except Exception as e:
+        print("Unexpected error:", e)
+        return error_response("Server error", "حدث خطأ في السيرفر")

@@ -2,6 +2,21 @@ from sqlalchemy import Column, Integer, String, Text, Date, Float, ForeignKey ,B
 from sqlalchemy.orm import relationship
 from app.database import Base
 
+
+
+class MetadataService(Base):
+    __tablename__ = "MetadataService"
+    __table_args__ = {"schema": "Metadata"}
+
+    Id = Column(Integer, primary_key=True, index=True)
+    MetadataID = Column(Integer, ForeignKey("Metadata.MetadataInfo.MetadataID"))
+    Type = Column(String(50))
+    URL = Column(String(500))
+
+    metadata_info = relationship("MetadataInfo", back_populates="services")
+
+
+
 class DatasetInfo(Base):
     __tablename__ = "DatasetInfo"
     __table_args__ = {"schema": "Metadata"}
@@ -37,6 +52,11 @@ class MetadataInfo(Base):
     descriptionAr = Column(UnicodeText)
     CreationDate = Column(Date)
     URL = Column(Unicode(500))
+    services = relationship(
+        "MetadataService",
+        back_populates="metadata_info",
+        cascade="all, delete-orphan"
+    )
     WestBound = Column(Float)
     EastBound = Column(Float)
     NorthBound = Column(Float)
@@ -53,3 +73,6 @@ class MetadataInfo(Base):
     IsDeleted = Column(Boolean, default=False)
 
     dataset = relationship("DatasetInfo", back_populates="metadata_info")
+
+
+
