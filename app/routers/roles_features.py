@@ -103,7 +103,7 @@ def create_role(payload: RoleCreate, db: Session = Depends(get_db), user: User =
     if payload.app_feature_ids:
         admin_features = db.query(AppFeature).filter(
             AppFeature.AppFeatureID.in_(payload.app_feature_ids),
-            AppFeature.Type == FeatureTypeEnum.ADMIN
+            AppFeature.AppType == FeatureTypeEnum.ADMIN
         ).all()
         for feature in admin_features:
             db.add(RoleApp(RoleID=role.RoleID, AppFeatureID=feature.AppFeatureID, CreatedByUserID=user.UserID))
@@ -220,7 +220,7 @@ def update_role(role_id: int, payload: RoleUpdate, db: Session = Depends(get_db)
         # Filter only Admin features
         admin_features = db.query(AppFeature).filter(
             AppFeature.AppFeatureID.in_(payload.app_feature_ids),
-            AppFeature.Type == FeatureTypeEnum.ADMIN
+            AppFeature.AppType == FeatureTypeEnum.ADMIN
         ).all()
         admin_feature_ids = {f.AppFeatureID for f in admin_features}
 
