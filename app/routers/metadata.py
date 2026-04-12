@@ -477,7 +477,7 @@ def create_metadata(
     new_metadata = MetadataInfo(
         DatasetID=DatasetID, Name=Name, NameAr=NameAr, Title=Title, TitleAr=TitleAr,
         description=description, descriptionAr=descriptionAr,
-        CreationDate=CreationDate, URL=URL,
+        CreationDate=CreationDate, 
         WestBound=WestBound, EastBound=EastBound, NorthBound=NorthBound, SouthBound=SouthBound,
         MetadataStandardName=MetadataStandardName, MetadataStandardVersion=MetadataStandardVersion,
         ContactName=ContactName, PositionName=PositionName, Organization=Organization,
@@ -499,7 +499,10 @@ def create_metadata(
 
 
     if Services:
-        services_list = json.loads(Services)
+        try:
+            services_list = json.loads(Services)
+        except Exception:
+            return error_response("Invalid Services JSON", "صيغة الخدمات غير صحيحة")
 
         for s in services_list:
             service = MetadataService(
@@ -579,7 +582,10 @@ def update_metadata(
     # 2️⃣ Update services
     # -------------------------
     if Services is not None:
-        services_list = json.loads(Services)
+        try:
+            services_list = json.loads(Services)
+        except Exception:
+            return error_response("Invalid Services JSON", "صيغة الخدمات غير صحيحة")
 
         # ❗ delete old services
         db.query(MetadataService).filter(
