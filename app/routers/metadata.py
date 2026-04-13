@@ -650,33 +650,37 @@ def normalize_url(url: str) -> str:
     return url.split("?")[0].rstrip("/").lower()
 
 
-@router.get("/find-layer")
+
+from pydantic import BaseModel
+
+# 1. Define the data we expect to receive in the POST body
+class LayerSearchRequest(BaseModel):
+    url: str
+    layer_name: str
+    type: str
+
+# 2. Change to POST
+@router.post("/find-layer")
 def find_layer(
-    url: str,
-    layer_name: str,
-    type: str,
+    request: LayerSearchRequest, 
     db: Session = Depends(get_db)
 ):
     try:
-        # ✅ Decode incoming URL
-        decoded_url = unquote(url)
-
-        # ✅ Normalize inputs
+        # Extract variables from the request body
+        decoded_url = unquote(request.url)
         normalized_input_url = normalize_url(decoded_url)
-        normalized_layer_name = layer_name.lower().strip()
-        normalized_type = type.upper().strip()
+        normalized_layer_name = request.layer_name.lower().strip()
+        normalized_type = request.type.upper().strip()
 
         metadata_list = db.query(MetadataInfo).filter(
             MetadataInfo.IsDeleted == False
         ).all()
 
         for m in metadata_list:
-
-            if not m.services:   # ⚠️ make sure column name = Services (string JSON)
+            if not m.services:
                 continue
 
             try:
-                # ✅ Load services JSON
                 services = [
                     {"type": s.Type, "url": s.URL}
                     for s in m.services
@@ -686,13 +690,12 @@ def find_layer(
                     service_type = s.get("type", "").upper()
                     service_url = normalize_url(s.get("url", ""))
 
-                    # ✅ Matching logic
                     if (
                         service_type == normalized_type
                         and normalized_input_url == service_url
                         and normalized_layer_name in (m.Name or "").lower()
                     ):
-                        frontend_url = os.getenv("FRONTEND_BASE_URL")
+                        frontend_url = os.getenv("FRONTEND_BASE_URL", "https://apps.sgs.gov.sa")
 
                         return success_response(
                             "Layer found",
