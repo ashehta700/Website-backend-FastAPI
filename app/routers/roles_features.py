@@ -117,15 +117,27 @@ def create_role(payload: RoleCreate, db: Session = Depends(get_db), user: User =
 
 
 
-@router.get("/roles", dependencies=[Depends(require_admin)])
-def get_all_roles(db: Session = Depends(get_db)):
-    roles = db.query(Role).all()
+#this endpoint for get the roles app features and details for the admin user and authenticated user
+@router.get("/roles", dependencies=[Depends(get_current_user)])
+def get_roles(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    # ✅ لو Admin → كل الـ roles
+    if user.RoleID == 1:  # أو check admin بطريقة تانية
+        roles = db.query(Role).all()
+    else:
+        roles = db.query(Role).filter(Role.RoleID == user.RoleID).all()
+
     data = []
+
     for r in roles:
         data.append({
             "RoleID": r.RoleID,
             "NameEn": r.NameEn,
             "NameAr": r.NameAr,
+
+            # ✅ Admin Features
             "AdminFeatures": [
                 {
                     "AppFeatureID": f.AppFeatureID,
@@ -134,6 +146,8 @@ def get_all_roles(db: Session = Depends(get_db)):
                 }
                 for f in r.features if f.AppType == FeatureTypeEnum.ADMIN
             ],
+
+            # ✅ Earth Features
             "EarthFeatures": [
                 {
                     "AppFeatureID": f.AppFeatureID,
@@ -143,6 +157,7 @@ def get_all_roles(db: Session = Depends(get_db)):
                 for f in r.features if f.AppType == FeatureTypeEnum.EARTH
             ]
         })
+
     return success_response(
         "Roles retrieved successfully",
         "تم جلب الأدوار بنجاح",
@@ -151,10 +166,12 @@ def get_all_roles(db: Session = Depends(get_db)):
 
 
 
-
 class AssignFeatureToRolesPayload(BaseModel):
     role_ids: List[int]
 
+
+
+# this endpoint is used to assign features to roles
 @router.post("/roles/{app_feature_id}/assign_features", dependencies=[Depends(require_admin)])
 def assign_feature_to_roles(
     app_feature_id: int,
@@ -167,8 +184,8 @@ def assign_feature_to_roles(
         return error_response("App feature not found", "ميزة التطبيق غير موجود")
 
     # Optionally, allow only admin features to be assigned here
-    if feature.Type != FeatureTypeEnum.ADMIN:
-        return error_response("Feature is not an admin feature", "الميزة ليست من لوحة الإدارة")
+    # if feature.AppType != FeatureTypeEnum.ADMIN:
+    #     return error_response("Feature is not an admin feature", "الميزة ليست من لوحة الإدارة")
 
     existing_links = db.query(RoleApp).filter(RoleApp.AppFeatureID == app_feature_id).all()
     existing_role_ids = {link.RoleID for link in existing_links}
@@ -200,6 +217,10 @@ def assign_feature_to_roles(
             "CurrentRoles": current_roles
         }
     )
+
+
+
+
 
 @router.put("/roles/{role_id}", dependencies=[Depends(require_admin)])
 def update_role(role_id: int, payload: RoleUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
