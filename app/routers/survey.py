@@ -356,12 +356,30 @@ def get_survey_statistics(
             .all()
         )
 
+        # ✅ NEW: Get text answers (please_specify)
+        text_answers = (
+            db.query(UsersFeedbackAnswer.please_specify)
+            .filter(
+                UsersFeedbackAnswer.QuestionId == q.Id,
+                UsersFeedbackAnswer.please_specify.isnot(None),
+                UsersFeedbackAnswer.please_specify != ""
+            )
+            .all()
+        )
+
+        # Convert list of tuples → list of strings
+        text_answers_list = [t[0] for t in text_answers]
+
         question_stats.append({
             "QuestionId": q.Id,
             "Question_en": q.MainQuestion,
             "Question_ar": q.MainQuestion_Ar,
             "TotalAnswers": answer_count,
-            "Choices": [{"choice": c[0], "count": c[1]} for c in choice_counts]
+            "Choices": [
+                {"choice": c[0], "count": c[1]} for c in choice_counts
+            ],
+            # ✅ NEW FIELD
+            "TextAnswers": text_answers_list
         })
 
     return success_response("Survey statistics loaded successfully", data={
