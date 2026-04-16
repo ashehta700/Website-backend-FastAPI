@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import null, or_, func
+from sqlalchemy import or_, func
 from typing import Optional, List
 from urllib.parse import quote
 from app.database import SessionLocal
@@ -18,6 +18,7 @@ from app.utils.response import success_response, error_response
 from app.utils.paths import normalize_static_subpath
 import re
 import os
+
 router = APIRouter(prefix="/search", tags=["Global Search"])
 
 
@@ -35,7 +36,6 @@ def get_db():
 # ==========================================
 # Helpers
 # ==========================================
-
 def build_image_url(request: Request, image_path: Optional[str]):
     if not image_path:
         return None
@@ -70,14 +70,20 @@ def build_search_filter(columns, keywords):
 
 
 def get_primary_key(model):
-    """Return the primary key column of any model."""
     return list(model.__table__.primary_key.columns)[0]
 
 
 # ==========================================
 # GLOBAL SEARCH LOGIC
 # ==========================================
-def global_search(db: Session, query: str, request: Request, skip=0, limit=10):
+def global_search(
+    db: Session,
+    query: str,
+    request: Request,
+    skip=0,
+    limit=10,
+    tags: List[str] = []
+):
 
     keywords = extract_keywords(query)
     if not keywords:
@@ -98,84 +104,91 @@ def global_search(db: Session, query: str, request: Request, skip=0, limit=10):
         })
 
     # ============================
-    # Search FAQ
+    # FAQ
     # ============================
-    faq_cols = [
-        FAQ.QuestionEn, FAQ.AnswerEn,
-        FAQ.QuestionAr, FAQ.AnswerAr
-    ]
+    if not tags or "faq" in tags:
+        faq_cols = [
+            FAQ.QuestionEn, FAQ.AnswerEn,
+            FAQ.QuestionAr, FAQ.AnswerAr
+        ]
 
-    faq_items = (
-        db.query(FAQ)
-        .filter(
-            FAQ.IsDelete == 0,
-            build_search_filter(faq_cols, keywords)
+        faq_items = (
+            db.query(FAQ)
+            .filter(
+                FAQ.IsDelete == 0,
+                build_search_filter(faq_cols, keywords)
+            )
+            .order_by(FAQ.FAQID.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
         )
-        .order_by(FAQ.FAQID.desc())      # 🔥 MSSQL FIX
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
 
-    for i in faq_items:
-        add("FAQ", "FAQ", f"/faq/{i.FAQID}",
-            i.QuestionEn, i.QuestionAr, i.AnswerEn, i.AnswerAr, None)
+        for i in faq_items:
+            add("FAQ", "FAQ", f"/faq/{i.FAQID}",
+                i.QuestionEn, i.QuestionAr, i.AnswerEn, i.AnswerAr, None)
 
     # ============================
     # DatasetInfo
     # ============================
-    dataset_cols = [
-        DatasetInfo.Name, DatasetInfo.Title,
-        DatasetInfo.NameAr, DatasetInfo.TitleAr,
-        DatasetInfo.description, DatasetInfo.descriptionAr,
-        DatasetInfo.Keywords
-    ]
+    if not tags or "metadata" in tags:
+        dataset_cols = [
+            DatasetInfo.Name, DatasetInfo.Title,
+            DatasetInfo.NameAr, DatasetInfo.TitleAr,
+            DatasetInfo.description, DatasetInfo.descriptionAr,
+            DatasetInfo.Keywords
+        ]
 
-    dataset_items = (
-        db.query(DatasetInfo)
-        .filter(
-            DatasetInfo.IsDeleted == 0,
-            build_search_filter(dataset_cols, keywords)
+        dataset_items = (
+            db.query(DatasetInfo)
+            .filter(
+                DatasetInfo.IsDeleted == 0,
+                build_search_filter(dataset_cols, keywords)
+            )
+            .order_by(DatasetInfo.DatasetID.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
         )
-        .order_by(DatasetInfo.DatasetID.desc())   # 🔥 MSSQL FIX
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
 
-    for d in dataset_items:
-        add("DatasetInfo", "Metadata", f"/datasets/{d.DatasetID}",
-            d.Name, d.NameAr, d.description, d.descriptionAr, d.img)
+        for d in dataset_items:
+            add("DatasetInfo", "Metadata", f"/datasets/{d.DatasetID}",
+                d.Name, d.NameAr, d.description, d.descriptionAr, d.img)
 
     # ============================
     # MetadataInfo
     # ============================
-    meta_cols = [
-        MetadataInfo.Name, MetadataInfo.Title,
-        MetadataInfo.NameAr, MetadataInfo.TitleAr,
-        MetadataInfo.description, MetadataInfo.descriptionAr
-    ]
+    if not tags or "metadata" in tags:
+        meta_cols = [
+            MetadataInfo.Name, MetadataInfo.Title,
+            MetadataInfo.NameAr, MetadataInfo.TitleAr,
+            MetadataInfo.description, MetadataInfo.descriptionAr
+        ]
 
-    meta_items = (
-        db.query(MetadataInfo)
-        .filter(
-            MetadataInfo.IsDeleted == 0,
-            build_search_filter(meta_cols, keywords)
+        meta_items = (
+            db.query(MetadataInfo)
+            .filter(
+                MetadataInfo.IsDeleted == 0,
+                build_search_filter(meta_cols, keywords)
+            )
+            .order_by(MetadataInfo.MetadataID.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
         )
-        .order_by(MetadataInfo.MetadataID.desc())   # 🔥 MSSQL FIX
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
 
-    for m in meta_items:
-        add("MetadataInfo", "Metadata", f"/metadata/{m.MetadataID}",
-            m.Name, m.NameAr, m.description, m.descriptionAr ,image = None)
+        for m in meta_items:
+            add("MetadataInfo", "Metadata", f"/metadata/{m.MetadataID}",
+                m.Name, m.NameAr, m.description, m.descriptionAr, None)
 
     # ============================
-    # GENERIC SEARCH MODEL FUNCTION
+    # GENERIC SEARCH FUNCTION
     # ============================
-    def search_model(model, cols, id_name, url_path, image_field):
+    def search_model(model, cols, id_name, url_path, image_field, tag_name):
+
+        if tags and tag_name not in tags:
+            return
+
         pk = get_primary_key(model)
 
         items = (
@@ -186,7 +199,7 @@ def global_search(db: Session, query: str, request: Request, skip=0, limit=10):
                 ) == 0,
                 build_search_filter(cols, keywords)
             )
-            .order_by(pk.desc())    # 🔥 MSSQL FIX
+            .order_by(pk.desc())
             .offset(skip)
             .limit(limit)
             .all()
@@ -195,7 +208,7 @@ def global_search(db: Session, query: str, request: Request, skip=0, limit=10):
         for i in items:
             add(
                 model.__name__,
-                model.__name__,
+                tag_name,
                 f"{url_path}/{getattr(i, id_name)}",
                 getattr(i, "TitleEn", None) or getattr(i, "NameEn", None),
                 getattr(i, "TitleAr", None) or getattr(i, "NameAr", None),
@@ -205,54 +218,61 @@ def global_search(db: Session, query: str, request: Request, skip=0, limit=10):
             )
 
     # ============================
-    # Apply to all other tables
+    # APPLY SEARCH
     # ============================
     search_model(
         News,
         [News.TitleEn, News.DescriptionEn, News.TitleAr, News.DescriptionAr],
-        "NewsID", "/news", "ImagePath"
+        "NewsID", "/news", "ImagePath",
+        "news"
     )
 
     search_model(
         Product,
         [Product.NameEn, Product.DescriptionEn, Product.NameAr, Product.DescriptionAr],
-        "ProductID", "/products", "ImagePath"
+        "ProductID", "/products", "ImagePath",
+        "products"
     )
 
     search_model(
         Projects,
         [Projects.NameEn, Projects.DescriptionEn, Projects.NameAr, Projects.DescriptionAr],
-        "ProjectID", "/projects", "ImagePath"
+        "ProjectID", "/projects", "ImagePath",
+        "projects"
     )
 
     search_model(
         ProjectDetails,
         [ProjectDetails.ServiceName, ProjectDetails.ServiceDescription],
-        "ProjectDetailID", "/project-details", "ImageUrl"
+        "ProjectDetailID", "/project-details", "ImageUrl",
+        "project-details"
     )
 
     search_model(
         ManualGuide,
         [ManualGuide.NameEn, ManualGuide.DescriptionEn, ManualGuide.NameAr, ManualGuide.DescriptionAr],
-        "ManualGuideID", "/manual-guides", "ImageUrl"
+        "ManualGuideID", "/manual-guides", "ImageUrl",
+        "manual-guides"
     )
 
     search_model(
         Video,
         [Video.TitleEn, Video.DescriptionEn, Video.TitleAr, Video.DescriptionAr],
-        "VideoID", "/videos", "ImagePath"
+        "VideoID", "/videos", "ImagePath",
+        "videos"
     )
 
     return results
 
 
 # ==========================================
-# Search Endpoint
+# Endpoint
 # ==========================================
 @router.get("/")
 def search(
     request: Request,
     query: str = Query(...),
+    tags: Optional[str] = Query(None),
     page: int = 1,
     limit: int = 10,
     db: Session = Depends(get_db)
@@ -261,8 +281,14 @@ def search(
         if not query.strip():
             return error_response("Query cannot be empty.", "الاستعلام فارغ.")
 
+        # ✅ Parse tags
+        tag_list = []
+        if tags:
+            tag_list = [t.strip().lower() for t in tags.split(",") if t.strip()]
+
         skip = (page - 1) * limit
-        results = global_search(db, query, request, skip, limit)
+
+        results = global_search(db, query, request, skip, limit, tag_list)
 
         if not results:
             return error_response("No results found.", "لا توجد نتائج.", "NOT_FOUND")
@@ -274,6 +300,7 @@ def search(
                 "page": page,
                 "limit": limit,
                 "count": len(results),
+                "filters": ["news", "projects", "products", "videos", "metadata", "faq"],
                 "results": results
             }
         )

@@ -34,6 +34,7 @@ def create_contact(
     Body: Optional[str] = Form(None),
     Email: Optional[str] = Form(None),
     PhoneNumber: Optional[str] = Form(None),
+    Organization: Optional[str] = Form(None),
     attach: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_optional_user)
@@ -72,6 +73,7 @@ def create_contact(
         UserID=user_id,
         Email=user_email,
         PhoneNumber=PhoneNumber,
+        Organization=Organization,   # ✅ NEW
         ReplyStatus=False
     )
 
@@ -92,6 +94,7 @@ def create_contact(
             <li><strong>Subject:</strong> {Subject or 'N/A'}</li>
             <li><strong>Message:</strong> {Body or 'N/A'}</li>
             <li><strong>ContactID:</strong> {new_contact.ContactID}</li>
+            <li><strong>Organization:</strong> {Organization or 'N/A'}</li>
         </ul>
     </div>
     """
@@ -162,6 +165,7 @@ def list_contacts_admin(
             "Body": c.Body,
             "Email": c.Email,
             "PhoneNumber": c.PhoneNumber,
+            "Organization": c.Organization,
             "AttachPath": build_file_url(request, c.AttachPath) if request else None,
             "ReplyStatus": c.ReplyStatus,
             "UserId": c.UserID,
@@ -215,6 +219,7 @@ def get_contact_details_admin(
         "Body": contact.Body,
         "Email": contact.Email,
         "PhoneNumber": contact.PhoneNumber,
+        "Organization": contact.Organization,
         "AttachPath": build_file_url(request, contact.AttachPath),
         "ReplyStatus": contact.ReplyStatus,
         "UserId": contact.UserID,

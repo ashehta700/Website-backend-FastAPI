@@ -12,6 +12,7 @@ class ContactUsCreate(BaseModel):
     UserID: Optional[int] = None   # ✅ allow null instead of forcing int
     Email: Optional[str] = None
     PhoneNumber: Optional[str] = None
+    Organization: Optional[str] = None   # ✅ NEW
 
 
 class ContactUsReplyCreate(BaseModel):

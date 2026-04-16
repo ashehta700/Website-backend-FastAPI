@@ -17,8 +17,8 @@ class ContactUs(Base):
     CreatedAt = Column(DateTime, default=datetime.utcnow)
     Email = Column(String(150), nullable=True)
     PhoneNumber = Column(String(50), nullable=True)
+    Organization = Column(String(200), nullable=True)
     ReplyStatus = Column(Boolean, default=False)
-
     Responses = relationship("ContactUsResponse", back_populates="Contact")
 
 
